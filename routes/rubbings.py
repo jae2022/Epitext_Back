@@ -16,18 +16,37 @@ rubbings_bp = Blueprint('rubbings', __name__)
 @rubbings_bp.route('/api/rubbings', methods=['GET'])
 def get_rubbings():
     """탁본 목록 조회"""
+    from urllib.parse import unquote, quote
     status = request.args.get('status')
     
-    query = Rubbing.query
+    # URL 디코딩 처리 (한글 인코딩 문제 해결)
+    if status:
+        try:
+            # Flask가 잘못 디코딩한 경우를 대비해 원본 URL에서 직접 파싱
+            raw_query = request.query_string.decode('utf-8')
+            if 'status=' in raw_query:
+                status_part = raw_query.split('status=')[1].split('&')[0]
+                status = unquote(status_part, encoding='utf-8')
+        except:
+            # 실패 시 기존 방식 사용
+            try:
+                status = unquote(status, encoding='utf-8')
+            except:
+                pass
     
-    # 필터링
-    if status == "복원 완료":
-        query = query.filter(Rubbing.is_completed == True)
-    elif status == "복원 진행중":
-        query = query.filter(Rubbing.is_completed == False)
+    # 최신순 정렬로 먼저 가져오기
+    all_rubbings = Rubbing.query.order_by(Rubbing.created_at.desc()).all()
     
-    # 최신순 정렬
-    rubbings = query.order_by(Rubbing.created_at.desc()).all()
+    # 필터링 (Python 레벨에서 필터링 - SQLite Boolean 처리 문제 해결)
+    if status == "completed" or (status and "복원" in status and "완료" in status):
+        # is_completed가 True인 것만
+        rubbings = [r for r in all_rubbings if bool(r.is_completed)]
+    elif status == "in_progress" or (status and "복원" in status and "진행중" in status):
+        # is_completed가 False인 것만
+        rubbings = [r for r in all_rubbings if not bool(r.is_completed)]
+    else:
+        # 전체
+        rubbings = all_rubbings
     
     return jsonify([rubbing.to_dict() for rubbing in rubbings])
 
