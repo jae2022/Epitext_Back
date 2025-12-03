@@ -173,7 +173,7 @@ def upload_rubbing():
     preprocess_message = None
     
     try:
-        # 전처리 실행
+        # 1. 통합 전처리 실행
         preprocess_result = preprocess_image_unified(
             input_path=original_path,
             output_swin_path=swin_path,
@@ -186,6 +186,33 @@ def upload_rubbing():
             logger.info(f"[PREPROCESS] 전처리 성공: {unique_filename}")
             logger.info(f"  - Swin: {swin_path}")
             logger.info(f"  - OCR: {ocr_path}")
+            
+            # ==================================================================
+            # [추가] 2. OCR 엔진 실행 (전처리된 이진 이미지 사용)
+            # ==================================================================
+            try:
+                from ai_modules.ocr_engine import get_ocr_engine
+                
+                # 엔진 로드
+                engine = get_ocr_engine()
+                
+                ocr_result = engine.run_ocr(ocr_path)
+                
+                if ocr_result.get('success'):
+                    count = ocr_result.get('final_count', 0)
+                    logger.info(f"[OCR] 분석 완료! 인식된 글자 수: {count}개")
+                    
+                    # (선택사항) 여기서 ocr_result['results'] 데이터를 DB에 저장하는 로직을 추가할 수 있습니다.
+                    # 예: save_ocr_results_to_db(rubbing.id, ocr_result)
+                    
+                else:
+                    error_msg = ocr_result.get('error', 'Unknown Error')
+                    logger.error(f"[OCR] 분석 실패: {error_msg}")
+                    
+            except Exception as ocr_e:
+                logger.error(f"[OCR] 실행 중 예외 발생: {ocr_e}")
+            # ==================================================================
+
         else:
             preprocess_message = preprocess_result.get('message', 'Unknown error')
             logger.warning(f"[PREPROCESS] 전처리 실패: {preprocess_message}")

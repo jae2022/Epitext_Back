@@ -519,11 +519,20 @@ def ensemble_reconstruction(google_syms, custom_syms, binary_img, config):
     median_h = np.median(all_h) if all_h else 30.0
     
     # Filter Height & Check Ink
+    def global_remove_tall_and_top(boxes, median_h, threshold=2.0):
+        if not boxes: return []
+        filtered = []
+        for b in boxes:
+            if b['height'] > median_h * threshold: continue
+            if b['min_y'] < img_h * 0.15 and b['height'] > median_h * 2.5: continue
+            filtered.append(b)
+        return filtered
+    
     if google_syms:
-        google_syms = [s for s in google_syms if not (s['height'] > median_h*2.0)]
+        google_syms = global_remove_tall_and_top(google_syms, median_h, threshold=2.0)
         google_syms = check_ink_on_google(google_syms)
     if custom_syms:
-        custom_syms = [s for s in custom_syms if not (s['height'] > median_h*3.5)]
+        custom_syms = global_remove_tall_and_top(custom_syms, median_h, threshold=3.5)
 
     # Resize & Filter Custom
     avg_w = np.mean([s['width'] for s in google_syms]) if google_syms else 0
@@ -581,22 +590,46 @@ def ensemble_reconstruction(google_syms, custom_syms, binary_img, config):
         step_y = np.median(local_steps) if local_steps else global_step
         
         # Deduplication in column
-        unique_col = [col[0]] if col else []
-        for k in range(1, len(col)):
-            curr, prev = col[k], unique_col[-1]
-            dist = abs(curr['center_y'] - prev['center_y'])
-            if dist < median_h * 0.6:
-                # Mask priority logic
-                pm = 'MASK' in prev.get('type', 'TEXT')
-                cm = 'MASK' in curr.get('type', 'TEXT')
-                if pm and cm: 
-                    if prev['density'] < curr['density']: unique_col[-1] = curr
-                elif pm: pass
-                elif cm: unique_col[-1] = curr
-                elif curr.get('source') == 'Google': unique_col[-1] = curr
-                elif prev.get('source') == 'Google': pass
-                else: unique_col.append(curr)
-            else: unique_col.append(curr)
+        unique_col = []
+        if col:
+            prev = col[0]
+            unique_col.append(prev)
+            for k in range(1, len(col)):
+                curr = col[k]
+                dist_y = abs(curr['center_y'] - prev['center_y'])
+                is_same_text = (curr.get('text') == prev.get('text'))
+                is_close = (dist_y < median_h * 0.6)
+                
+                if is_close:
+                    prev_is_mask = 'MASK' in prev.get('type', 'TEXT')
+                    curr_is_mask = 'MASK' in curr.get('type', 'TEXT')
+                    
+                    if prev_is_mask and curr_is_mask:
+                        if prev['density'] < curr['density']:
+                            unique_col.pop()
+                            unique_col.append(curr)
+                            prev = curr
+                        continue
+                    elif prev_is_mask and not curr_is_mask:
+                        continue
+                    elif not prev_is_mask and curr_is_mask:
+                        unique_col.pop()
+                        unique_col.append(curr)
+                        prev = curr
+                        continue
+                
+                if is_same_text and is_close:
+                    if prev.get('source') == 'Google': 
+                        continue
+                    elif curr.get('source') == 'Google': 
+                        unique_col.pop()
+                        unique_col.append(curr)
+                        prev = curr
+                    else: 
+                        continue
+                else:
+                    unique_col.append(curr)
+                    prev = curr
         
         col = infer_gaps(unique_col, step_y, avg_w if avg_w else median_h)
         
