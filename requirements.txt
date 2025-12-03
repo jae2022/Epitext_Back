@@ -6,3 +6,7 @@ PyMySQL==1.1.0
 Pillow>=10.2.0
 Werkzeug==3.0.1
 
+# AI Modules - Image Preprocessing
+opencv-python>=4.8.0
+numpy>=1.24.0
+
