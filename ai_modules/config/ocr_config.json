@@ -1,0 +1,76 @@
+{
+  "module_info": {
+    "name": "ocr_ensemble",
+    "version": "12.0.0",
+    "description": "Google Vision API + HRCenterNet 앙상블 기반 한자 OCR 및 손상 영역 탐지",
+    "status": "Production Ready",
+    "created": "2025-12-03"
+  },
+  
+  "model_config": {
+    "input_size": 512,
+    "output_size": 128,
+    "device": "auto"
+  },
+  
+  "filtering_thresholds": {
+    "min_score_hard": 0.30,
+    "density_min_hard": 0.10,
+    "smart_score_threshold": 0.40,
+    "smart_density_threshold": 0.15
+  },
+  
+  "ink_detection_thresholds": {
+    "density_ink_heavy": 0.60,
+    "density_ink_partial": 0.38,
+    "description": {
+      "density_ink_heavy": "짙은 먹물 오염 감지 (구멍 뚫린 먹물)",
+      "density_ink_partial": "부분 오염 감지 (뭉개진 글자)"
+    }
+  },
+  
+  "nms_config": {
+    "primary_threshold": 0.12,
+    "fallback_threshold": 0.08,
+    "iou_threshold": 0.05
+  },
+  
+  "merge_config": {
+    "vertical_fragments": {
+      "horizontal_center_ratio": 0.5,
+      "vertical_gap_ratio": 0.4,
+      "aspect_ratio_limit": 1.6
+    },
+    "google_symbols": {
+      "horizontal_center_ratio": 0.5,
+      "vertical_gap_ratio": 0.35,
+      "aspect_ratio_limit": 1.45
+    }
+  },
+  
+  "ensemble_config": {
+    "title_removal_height_ratio": 2.0,
+    "top_region_ratio": 0.15,
+    "column_grouping_ratio": 0.8,
+    "gap_inference_ratio": 1.8,
+    "excessive_mask_threshold": 10
+  },
+  
+  "visualization": {
+    "colors": {
+      "google": "#00ff00",
+      "custom": "#ff00ff",
+      "mask1": "blue",
+      "mask2": "red",
+      "inferred": "yellow"
+    },
+    "line_width": 5,
+    "font_size": 15
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - [%(levelname)s] %(message)s"
+  }
+}
+

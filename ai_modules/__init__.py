@@ -32,6 +32,11 @@ from .preprocessor_unified import (
     get_preprocessor,
     preprocess_image_unified
 )
+from .ocr_engine import (
+    get_ocr_engine,
+    OCREngine,
+    ocr_and_detect
+)
 
 __version__ = "1.0.0"
 __author__ = "Epitext Team"
@@ -39,6 +44,9 @@ __author__ = "Epitext Team"
 __all__ = [
     "UnifiedImagePreprocessor",
     "get_preprocessor",
-    "preprocess_image_unified"
+    "preprocess_image_unified",
+    "get_ocr_engine",
+    "OCREngine",
+    "ocr_and_detect"
 ]
 

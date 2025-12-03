@@ -204,3 +204,12 @@ images/rubbings/cropped/*
 .env.local
 .env.production
 .env.development
+
+# AI Model Weights and Checkpoints
+*.pth
+*.pt
+*.ckpt
+*.pth.tar
+
+# Google Cloud Vision API Credentials
+tidy-node*.json
