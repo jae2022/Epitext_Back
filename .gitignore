@@ -179,3 +179,28 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Project specific
+server.log
+*.pid
+models/punc/
+uploads/*
+!uploads/.gitkeep
+images/rubbings/*
+!images/rubbings/.gitkeep
+!images/rubbings/processed/
+images/rubbings/processed/*
+!images/rubbings/processed/.gitkeep
+images/rubbings/cropped/*
+!images/rubbings/cropped/.gitkeep
+
+# API Keys and Credentials
+*.key
+*.pem
+*.p12
+*credentials*.json
+*service-account*.json
+*secret*.json
+.env.local
+.env.production
+.env.development
