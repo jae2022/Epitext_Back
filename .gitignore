@@ -194,6 +194,11 @@ images/rubbings/processed/*
 images/rubbings/cropped/*
 !images/rubbings/cropped/.gitkeep
 
+# Test files and outputs
+test_*.py
+test_output/
+temp_output/
+
 # API Keys and Credentials
 *.key
 *.pem
