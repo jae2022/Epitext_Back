@@ -11,7 +11,7 @@
 ### 1-1. Epitext_Back 폴더로 이동
 
 ```bash
-cd "/Users/jincerity/Desktop/고려대 부트캠프/Epitext_Back"
+cd /path/to/Epitext_Back
 ```
 
 ### 1-2. Python 가상 환경 생성
@@ -243,7 +243,7 @@ export const getRubbingList = async (status = null) => {
 새 터미널 창을 열고:
 
 ```bash
-cd "/Users/jincerity/Desktop/고려대 부트캠프/Epitext_Front"
+cd /path/to/Epitext_Front
 npm run dev
 ```
 
