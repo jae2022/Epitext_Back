@@ -31,6 +31,12 @@ def create_app():
     os.makedirs(Config.IMAGES_FOLDER, exist_ok=True)
     os.makedirs(Config.CROPPED_IMAGES_FOLDER, exist_ok=True)
     
+    # 전처리 결과 저장 폴더 생성
+    original_folder = os.path.join(Config.IMAGES_FOLDER, 'original')
+    processed_folder = os.path.join(Config.IMAGES_FOLDER, 'processed')
+    os.makedirs(original_folder, exist_ok=True)
+    os.makedirs(processed_folder, exist_ok=True)
+    
     @app.route('/')
     def index():
         return {'message': 'Epitext Backend API', 'version': '1.0.0'}
