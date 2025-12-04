@@ -501,11 +501,9 @@ def get_rubbing_detail(rubbing_id):
             except:
                 text_content_with_punctuation = detail.text_content_with_punctuation.split('\n') if detail.text_content_with_punctuation else []
     
-    # 처리 일시 포맷팅
+    # 처리 일시 포맷팅 (RubbingDetail에는 processed_at이 없으므로 Rubbing에서 가져옴)
     processed_at_str = None
-    if detail and detail.processed_at:
-        processed_at_str = detail.processed_at.strftime('%Y-%m-%d %H:%M')
-    elif rubbing.processed_at:
+    if rubbing.processed_at:
         processed_at_str = rubbing.processed_at.strftime('%Y-%m-%d %H:%M')
     
     response = {
@@ -515,7 +513,7 @@ def get_rubbing_detail(rubbing_id):
         "processed_at": processed_at_str,
         "total_processing_time": detail.total_processing_time if detail else (rubbing.processing_time if rubbing.processing_time else 0),
         "font_types": font_types,
-        "damage_percentage": float(stats.damage_level) if stats and stats.damage_level else 0.0,
+        "damage_percentage": float(detail.damage_percentage) if detail and detail.damage_percentage else (float(rubbing.damage_level) if rubbing.damage_level else 0.0),
         
         # 통계 정보
         "statistics": {
@@ -608,10 +606,14 @@ def upload_rubbing():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    # 파일명 보안 처리
-    filename = secure_filename(file.filename)
+    # 파일명 보안 처리 (한글 파일명 보존)
+    original_filename = file.filename
+    safe_filename = secure_filename(original_filename)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    unique_filename = f"{timestamp}_{filename}"
+    unique_filename = f"{timestamp}_{safe_filename}"
+    
+    # DB에 저장할 파일명은 원본 파일명 사용 (한글 보존)
+    db_filename = original_filename if original_filename else safe_filename
     
     # 경로 설정
     base_folder = current_app.config.get('IMAGES_FOLDER', './images/rubbings')
@@ -784,7 +786,7 @@ def upload_rubbing():
     # DB에 레코드 생성
     rubbing = Rubbing(
         image_url=image_url,
-        filename=filename,
+        filename=db_filename,  # 원본 파일명 사용
         status="처리중",
         is_completed=False
     )
