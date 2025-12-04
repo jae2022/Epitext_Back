@@ -51,6 +51,8 @@ def create_app():
     @app.route('/images/<path:filename>')
     def serve_image(filename):
         """이미지 파일 서빙 (원본, 전처리된 이미지, 크롭 이미지)"""
+        # IMAGES_FOLDER = './images/rubbings'
+        # filename은 'original/xxx.jpg' 또는 'processed/cropped/xxx.jpg' 형태
         images_folder = Config.IMAGES_FOLDER
         return send_from_directory(images_folder, filename)
     

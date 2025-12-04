@@ -10,12 +10,14 @@ from ai_modules.preprocessor_unified import preprocess_image_unified
 from ai_modules.ocr_engine import get_ocr_engine
 from ai_modules.nlp_engine import get_nlp_engine
 from ai_modules.swin_engine import get_swin_engine
+from unicodedata import normalize
 import os
 from datetime import datetime
 import json
 import logging
 import cv2
 from decimal import Decimal
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +128,7 @@ def combine_mlm_and_swin(mlm_results, swin_results):
 def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined_candidates, swin_path, start_time):
     """
     AI 처리 결과를 DB에 저장합니다.
+    좌표 기반 추측 대신 텍스트 라인을 기준으로 순서대로 MASK를 찾아 매핑합니다.
     
     Args:
         rubbing_id: Rubbing ID
@@ -138,100 +141,106 @@ def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined
     """
     try:
         from datetime import datetime
-        # 1. OCR 결과에서 텍스트 추출
+        
         ocr_results = ocr_result.get('results', [])
+        
+        # 1. 텍스트 라인 구성 (좌표 기준으로 정렬하여 줄바꿈)
+        # Y좌표로 행을 나누고, 각 행 내부에서 X좌표로 정렬
+        lines_map = {}
+        row_height = 50  # 행 높이 기준 (픽셀)
+        
+        for item in ocr_results:
+            cy = item.get('center_y', 0)
+            row_idx = int(cy // row_height)
+            if row_idx not in lines_map:
+                lines_map[row_idx] = []
+            lines_map[row_idx].append(item)
+            
+        sorted_row_indices = sorted(lines_map.keys())
         text_lines = []
+        
+        # MASK 아이템과 그 위치를 추적하기 위한 매핑 리스트
+        # 구조: list of (row_index, char_index, item_dict)
+        mask_map_list = []
+        
+        for r_idx, row_key in enumerate(sorted_row_indices):
+            # X좌표 순으로 정렬
+            row_items = sorted(lines_map[row_key], key=lambda x: x.get('center_x', 0))
+            
+            line_str = ""
+            char_counter = 0
+            
+            for item in row_items:
+                text = item.get('text', '')
+                item_type = item.get('type', 'TEXT')
+                
+                # MASK인 경우 추적 리스트에 추가
+                if 'MASK' in item_type or 'MASK' in text:
+                    # 현재 줄의 현재 글자 위치 저장
+                    mask_map_list.append({
+                        'ocr_order': item.get('order'),  # OCR 원본 순서
+                        'row_index': r_idx,              # 0부터 시작하는 행 번호
+                        'char_index': char_counter,      # 0부터 시작하는 글자 번호
+                        'item': item
+                    })
+                
+                line_str += text
+                char_counter += 1
+            
+            text_lines.append(line_str)
+        
+        # 2. NLP 결과 텍스트 (구두점 포함)
         text_with_punc_lines = []
-        
-        # OCR 결과를 행별로 그룹화 (항상 rows 변수 정의)
-        rows = {}
-        if not ocr_results:
-            logger.warning("[DB] OCR 결과가 비어있습니다.")
-            text_lines = ['']
-        else:
-            for item in ocr_results:
-                # center_y 기준으로 행 분류 (간단한 휴리스틱)
-                y = item.get('center_y', 0)
-                row_key = int(y // 50)  # 50px 단위로 행 분류
-                if row_key not in rows:
-                    rows[row_key] = []
-                rows[row_key].append(item)
-            
-            # 행별로 정렬하고 텍스트 추출
-            if rows:
-                for row_idx, row_key in enumerate(sorted(rows.keys())):
-                    row_items = sorted(rows[row_key], key=lambda x: x.get('center_x', 0))
-                    text_line = ''.join([item.get('text', '') for item in row_items])
-                    if text_line:  # 빈 줄 제외
-                        text_lines.append(text_line)
-            
-            if not text_lines:
-                text_lines = ['']
-        
-        # 2. 구두점 복원 텍스트 추출
         punctuated_text = nlp_result.get('punctuated_text_with_masks', '')
         if punctuated_text:
             text_with_punc_lines = [line for line in punctuated_text.split('\n') if line.strip()]
-        
         if not text_with_punc_lines:
-            # 구두점 복원 텍스트가 없으면 OCR 텍스트 사용
             text_with_punc_lines = text_lines
         
-        # 처리 시간 계산
+        # 3. DB 저장: RubbingDetail
         end_time = datetime.utcnow()
         processing_time_seconds = int((end_time - start_time).total_seconds())
         
-        # 3. RubbingDetail 저장
         detail = RubbingDetail(
             rubbing_id=rubbing_id,
             text_content=json.dumps(text_lines, ensure_ascii=False),
             text_content_with_punctuation=json.dumps(text_with_punc_lines, ensure_ascii=False),
-            font_types=json.dumps([]),  # TODO: 폰트 타입 분석 추가
-            damage_percentage=None,  # 통계에서 계산
+            font_types=json.dumps(["해서체"]),  # 예시
             total_processing_time=processing_time_seconds
         )
         db.session.add(detail)
         
-        # 4. 복원 대상 및 후보 추출
+        # 4. DB 저장: RestorationTarget (정확한 위치 매핑)
         restoration_targets = []
         all_candidates = []
         
-        # OCR 결과에서 MASK1, MASK2 찾기
-        mask_items = [item for item in ocr_results if 'MASK' in item.get('type', '')]
-        
-        if not mask_items:
-            logger.info("[DB] 복원 대상(MASK)이 없습니다.")
-        
-        for mask_item in mask_items:
-            order = mask_item.get('order', -1)
-            if order < 0:
-                continue
+        for mask_info in mask_map_list:
+            item = mask_info['item']
+            order = mask_info['ocr_order']
             
-            # 행/열 인덱스 계산 (간단한 휴리스틱)
-            y = mask_item.get('center_y', 0)
-            x = mask_item.get('center_x', 0)
-            row_idx = int(y // 50)
-            char_idx = len([item for item in rows.get(int(y // 50), []) if item.get('center_x', 0) < x])
+            # 정확히 계산된 행/열 인덱스 사용
+            row_idx = mask_info['row_index']
+            char_idx = mask_info['char_index']
             
-            damage_type = '부분_훼손' if mask_item.get('type') == 'MASK2' else '완전_훼손'
+            damage_type = '부분_훼손' if item.get('type') == 'MASK2' else '완전_훼손'
             
-            # 크롭 이미지 생성 (선택사항)
+            # 크롭 이미지 처리
             cropped_image_url = None
-            crop_x = int(mask_item.get('min_x', 0))
-            crop_y = int(mask_item.get('min_y', 0))
-            crop_w = int(mask_item.get('max_x', 0) - mask_item.get('min_x', 0))
-            crop_h = int(mask_item.get('max_y', 0) - mask_item.get('min_y', 0))
+            crop_x = int(item.get('min_x', 0))
+            crop_y = int(item.get('min_y', 0))
+            crop_w = int(item.get('max_x', 0) - crop_x)
+            crop_h = int(item.get('max_y', 0) - crop_y)
             
-            # 크롭 이미지 저장 (선택사항)
             if os.path.exists(swin_path) and crop_w > 0 and crop_h > 0:
                 try:
                     img = cv2.imread(swin_path)
                     if img is not None:
-                        h, w = img.shape[:2]
-                        x1 = max(0, min(crop_x, w - 1))
-                        y1 = max(0, min(crop_y, h - 1))
-                        x2 = max(x1 + 1, min(crop_x + crop_w, w))
-                        y2 = max(y1 + 1, min(crop_y + crop_h, h))
+                        # 좌표 유효성 검사 및 클리핑
+                        h_img, w_img = img.shape[:2]
+                        x1 = max(0, min(crop_x, w_img - 1))
+                        y1 = max(0, min(crop_y, h_img - 1))
+                        x2 = max(x1 + 1, min(crop_x + crop_w, w_img))
+                        y2 = max(y1 + 1, min(crop_y + crop_h, h_img))
                         
                         cropped = img[y1:y2, x1:x2]
                         if cropped.size > 0:
@@ -240,121 +249,76 @@ def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined
                             cropped_filename = f"rubbing_{rubbing_id}_target_{order}.jpg"
                             cropped_path = os.path.join(cropped_dir, cropped_filename)
                             cv2.imwrite(cropped_path, cropped)
+                            # URL 경로 수정
                             cropped_image_url = f"/images/rubbings/processed/cropped/{cropped_filename}"
                 except Exception as e:
-                    logger.warning(f"[DB] 크롭 이미지 저장 실패: {e}")
+                    logger.warning(f"크롭 실패: {e}")
             
             target = RestorationTarget(
                 rubbing_id=rubbing_id,
                 row_index=row_idx,
                 char_index=char_idx,
-                position=f"{row_idx + 1}행 {char_idx + 1}자",
+                position=f"{row_idx + 1}행 {char_idx + 1}자",  # UI 표시용 1-based index
                 damage_type=damage_type,
                 cropped_image_url=cropped_image_url,
-                crop_x=crop_x,
-                crop_y=crop_y,
-                crop_width=crop_w,
-                crop_height=crop_h
+                crop_x=crop_x, crop_y=crop_y, crop_width=crop_w, crop_height=crop_h
             )
             db.session.add(target)
-            db.session.flush()  # ID 생성
+            db.session.flush()
             
-            restoration_targets.append((target, order))
-            
-            # 후보 저장
+            # 후보 한자 저장
             candidates = combined_candidates.get(order, [])
-            for rank, candidate in enumerate(candidates[:10]):  # Top-10만 저장
-                # 후보 데이터 검증
+            for candidate in candidates[:10]:
                 if not candidate or not candidate.get('character'):
                     continue
                 
-                try:
-                    # 안전한 Decimal 변환
-                    def safe_decimal(value, default=0):
-                        if value is None:
-                            return None if default is None else Decimal(str(default))
-                        try:
-                            return Decimal(str(float(value)))
-                        except (ValueError, TypeError):
-                            return Decimal(str(default))
-                    
-                    candidate_obj = Candidate(
-                        target_id=target.id,
-                        character=str(candidate['character'])[:10],  # 최대 10자
-                        stroke_match=safe_decimal(candidate.get('stroke_match'), None),
-                        context_match=safe_decimal(candidate.get('context_match'), None),  # Vision만 있는 경우 None 가능
-                        rank_vision=candidate.get('rank_vision'),
-                        rank_nlp=candidate.get('rank_nlp'),  # Vision만 있는 경우 None 가능
-                        model_type=str(candidate.get('model_type', 'nlp'))[:10],
-                        reliability=safe_decimal(candidate.get('reliability'), 0)
-                    )
-                    db.session.add(candidate_obj)
-                    all_candidates.append(candidate_obj)
-                except Exception as cand_e:
-                    logger.warning(f"[DB] 후보 저장 실패 (order={order}, rank={rank}): {cand_e}", exc_info=True)
-                    continue
+                # Decimal 변환 헬퍼
+                def to_decimal(val):
+                    return Decimal(str(val)) if val is not None else None
+                
+                cand_obj = Candidate(
+                    target_id=target.id,
+                    character=str(candidate['character']),
+                    stroke_match=to_decimal(candidate.get('stroke_match')),
+                    context_match=to_decimal(candidate.get('context_match')),
+                    rank_vision=candidate.get('rank_vision'),
+                    rank_nlp=candidate.get('rank_nlp'),
+                    model_type=str(candidate.get('model_type', 'nlp')),
+                    reliability=to_decimal(candidate.get('reliability'))
+                )
+                db.session.add(cand_obj)
+                all_candidates.append(cand_obj)
         
-        # 5. RubbingStatistics 저장
-        total_chars = sum(len(line) for line in text_lines)
-        restoration_count = len(restoration_targets)
-        partial_count = len([t for t, _ in restoration_targets if t.damage_type == '부분_훼손'])
-        complete_count = len([t for t, _ in restoration_targets if t.damage_type == '완전_훼손'])
-        restoration_percentage = (restoration_count / total_chars * 100) if total_chars > 0 else 0
+        # 5. 통계 저장
+        total_chars = sum(len(l) for l in text_lines)
+        r_count = len(mask_map_list)
+        percent = (r_count / total_chars * 100) if total_chars > 0 else 0
         
-        statistics = RubbingStatistics(
+        stats = RubbingStatistics(
             rubbing_id=rubbing_id,
             total_characters=total_chars,
-            restoration_targets=restoration_count,
-            partial_damage=partial_count,
-            complete_damage=complete_count,
-            restoration_percentage=Decimal(str(restoration_percentage))
+            restoration_targets=r_count,
+            partial_damage=len([m for m in mask_map_list if 'MASK2' in m['item'].get('type', '')]),
+            complete_damage=len([m for m in mask_map_list if 'MASK1' in m['item'].get('type', '')]),
+            restoration_percentage=Decimal(str(percent))
         )
-        db.session.add(statistics)
+        db.session.add(stats)
         
-        # Rubbing 레코드 업데이트 (상태, 처리 시간, 손상 정도 등)
+        # 6. Rubbing 상태 업데이트
         rubbing = Rubbing.query.get(rubbing_id)
-        if not rubbing:
-            raise ValueError(f"Rubbing ID {rubbing_id}를 찾을 수 없습니다.")
-        
-        # 손상 정도 계산 (안전한 변환)
-        try:
-            damage_level = Decimal(str(float(restoration_percentage)))
-        except (ValueError, TypeError):
-            damage_level = Decimal('0.0')
-            logger.warning(f"[DB] 손상 정도 계산 실패, 0.0으로 설정: {restoration_percentage}")
-        
-        # 상태 계산
-        try:
-            status = calculate_status(processing_time_seconds, float(damage_level))
-        except Exception as status_e:
-            logger.warning(f"[DB] 상태 계산 실패, 기본값 사용: {status_e}")
-            status = "처리중"  # 기본값
-        
-        # 복원 현황 문자열 생성
-        restoration_status = f"{total_chars}자 / 복원 대상 {restoration_count}자" if total_chars > 0 else "-"
-        
-        # 처리 시간 포맷팅
-        processing_time_str = f"{processing_time_seconds // 60}분 {processing_time_seconds % 60}초"
-        
-        # 업데이트
-        rubbing.status = status
-        rubbing.restoration_status = restoration_status
+        rubbing.status = calculate_status(processing_time_seconds, percent)
+        rubbing.restoration_status = f"{total_chars}자 / 복원 대상 {r_count}자"
         rubbing.processing_time = processing_time_seconds
-        rubbing.damage_level = damage_level
+        rubbing.damage_level = Decimal(str(percent))
         rubbing.processed_at = end_time
-        rubbing.inspection_status = "0자 완료"  # 초기값
-        rubbing.average_reliability = None  # 검수 후 계산
+        rubbing.inspection_status = "0자 완료"
         
         db.session.commit()
-        logger.info(f"[DB] 저장 완료: RubbingDetail, {restoration_count}개 RestorationTarget, {len(all_candidates)}개 Candidate")
-        logger.info(f"[DB] 상태 업데이트: {status}, 처리 시간: {processing_time_seconds}초")
+        logger.info(f"[DB] 저장 완료. ID: {rubbing_id}")
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"[DB] 저장 중 오류: {e}", exc_info=True)
-        # 상세한 에러 정보 로깅
-        import traceback
-        logger.error(f"[DB] 상세 에러:\n{traceback.format_exc()}")
+        logger.error(f"[DB] 저장 실패: {e}", exc_info=True)
         raise
 
 
@@ -606,14 +570,12 @@ def upload_rubbing():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
-    # 파일명 보안 처리 (한글 파일명 보존)
-    original_filename = file.filename
-    safe_filename = secure_filename(original_filename)
+    # 파일명 처리 (한글 파일명 보존)
+    original_filename = normalize('NFC', file.filename)
+    ext = os.path.splitext(original_filename)[1]
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    unique_filename = f"{timestamp}_{safe_filename}"
-    
-    # DB에 저장할 파일명은 원본 파일명 사용 (한글 보존)
-    db_filename = original_filename if original_filename else safe_filename
+    # 서버 저장용 영문 파일명
+    safe_filename = f"{timestamp}{ext}"
     
     # 경로 설정
     base_folder = current_app.config.get('IMAGES_FOLDER', './images/rubbings')
@@ -628,7 +590,7 @@ def upload_rubbing():
     original_path = save_uploaded_image(
         file,
         original_folder,
-        unique_filename
+        safe_filename
     )
     
     # 처리 시작 시간 기록
@@ -637,7 +599,7 @@ def upload_rubbing():
     # ------------------------------------------------------------------
     # [추가] AI 전처리 모듈 실행 (Integration)
     # ------------------------------------------------------------------
-    filename_no_ext = os.path.splitext(unique_filename)[0]
+    filename_no_ext = os.path.splitext(safe_filename)[0]
     swin_path = os.path.join(processed_folder, f"swin_{filename_no_ext}.jpg")
     ocr_path = os.path.join(processed_folder, f"ocr_{filename_no_ext}.png")
     
@@ -659,7 +621,7 @@ def upload_rubbing():
         
         if preprocess_result.get('success'):
             preprocess_success = True
-            logger.info(f"[PREPROCESS] 전처리 성공: {unique_filename}")
+            logger.info(f"[PREPROCESS] 전처리 성공: {safe_filename}")
             logger.info(f"  - Swin: {swin_path}")
             logger.info(f"  - OCR: {ocr_path}")
             
@@ -780,13 +742,16 @@ def upload_rubbing():
         logger.error(f"[PREPROCESS] 전처리 중 치명적 오류: {e}", exc_info=True)
     # ------------------------------------------------------------------
     
-    # DB 저장 경로 (원본 이미지 URL)
-    image_url = f"/images/rubbings/original/{unique_filename}"
+    # DB 저장용 URL 수정
+    # app.py에서 /images -> ./images/rubbings 로 매핑하므로
+    # 실제 파일이 ./images/rubbings/original/safe_filename 에 있다면
+    # URL은 /images/original/safe_filename 이어야 함
+    image_url = f"/images/original/{safe_filename}"
     
     # DB에 레코드 생성
     rubbing = Rubbing(
         image_url=image_url,
-        filename=db_filename,  # 원본 파일명 사용
+        filename=original_filename,  # 원본 한글 파일명 저장
         status="처리중",
         is_completed=False
     )
