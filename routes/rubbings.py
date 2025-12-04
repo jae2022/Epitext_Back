@@ -7,6 +7,8 @@ from utils.status_calculator import calculate_status, calculate_damage_level
 from utils.image_processor import save_uploaded_image
 from werkzeug.utils import secure_filename
 from ai_modules.preprocessor_unified import preprocess_image_unified
+from ai_modules.ocr_engine import get_ocr_engine
+from ai_modules.nlp_engine import get_nlp_engine
 import os
 from datetime import datetime
 import json
@@ -192,19 +194,19 @@ def upload_rubbing():
             # ==================================================================
             # [추가] 2. OCR 엔진 실행 (전처리된 이진 이미지 사용)
             # ==================================================================
+            ocr_result = None
             try:
-                from ai_modules.ocr_engine import get_ocr_engine
-                
                 # 엔진 로드
-                engine = get_ocr_engine()
+                ocr_engine = get_ocr_engine()
                 
-                ocr_result = engine.run_ocr(ocr_path)
+                ocr_result = ocr_engine.run_ocr(ocr_path)
                 
-                if ocr_result.get('success'):
-                    count = ocr_result.get('final_count', 0)
+                if ocr_result and 'results' in ocr_result:
+                    count = len(ocr_result.get('results', []))
                     logger.info(f"[OCR] 분석 완료! 인식된 글자 수: {count}개")
                     
                     # ==================================================================
+<<<<<<< HEAD
                     # [추가] 3. Swin MASK2 복원 실행
                     # ==================================================================
                     try:
@@ -230,10 +232,42 @@ def upload_rubbing():
                             
                     except Exception as swin_e:
                         logger.error(f"[SWIN] 실행 중 예외 발생: {swin_e}", exc_info=True)
+=======
+                    # [추가] 3. NLP 처리 (구두점 복원 + MLM 예측)
+                    # ==================================================================
+                    try:
+                        # OCR 결과에서 텍스트 추출 (results 배열에서 text 추출)
+                        ocr_results_list = ocr_result.get('results', [])
+                        if ocr_results_list:
+                            # 텍스트를 순서대로 결합
+                            raw_text = "".join([item.get('text', '') for item in ocr_results_list])
+                            logger.info(f"[NLP] OCR 텍스트 추출 완료: {len(raw_text)} 글자")
+                            
+                            # NLP 엔진 로드 및 처리
+                            nlp_engine = get_nlp_engine()
+                            # OCR 결과를 NLP에 전달하여 order 정보 유지
+                            nlp_result = nlp_engine.process_text(raw_text, ocr_results=ocr_results_list)
+                            
+                            if nlp_result and 'punctuated_text_with_masks' in nlp_result:
+                                logger.info(f"[NLP] 처리 완료!")
+                                logger.info(f"  - 구두점 복원 텍스트: {len(nlp_result.get('punctuated_text_with_masks', ''))} 글자")
+                                logger.info(f"  - MLM 예측 마스크 수: {nlp_result.get('statistics', {}).get('total_masks', 0)}개")
+                                
+                                # (선택사항) 여기서 nlp_result 데이터를 DB에 저장하는 로직을 추가할 수 있습니다.
+                                # 예: save_nlp_results_to_db(rubbing.id, nlp_result)
+                            else:
+                                error_msg = nlp_result.get('error', 'Unknown Error') if isinstance(nlp_result, dict) else 'Unknown Error'
+                                logger.error(f"[NLP] 처리 실패: {error_msg}")
+                        else:
+                            logger.warning("[NLP] OCR 결과에 텍스트가 없어 NLP 처리를 건너뜁니다.")
+                            
+                    except Exception as nlp_e:
+                        logger.error(f"[NLP] 실행 중 예외 발생: {nlp_e}", exc_info=True)
+>>>>>>> main
                     # ==================================================================
                     
                 else:
-                    error_msg = ocr_result.get('error', 'Unknown Error')
+                    error_msg = ocr_result.get('error', 'Unknown Error') if isinstance(ocr_result, dict) else 'OCR 결과 형식 오류'
                     logger.error(f"[OCR] 분석 실패: {error_msg}")
                     
             except Exception as ocr_e:
