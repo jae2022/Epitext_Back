@@ -46,6 +46,11 @@ from .translation_engine import (
     get_translation_engine,
     TranslationEngine
 )
+from .swin_engine import (
+    get_swin_engine,
+    SwinMask2Engine,
+    MASK2Parser
+)
 
 __version__ = "1.0.0"
 __author__ = "Epitext Team"
@@ -60,6 +65,9 @@ __all__ = [
     "get_nlp_engine",
     "NLPEngine",
     "process_text_with_nlp",
+    "get_swin_engine",
+    "SwinMask2Engine",
+    "MASK2Parser",
     "get_translation_engine",
     "TranslationEngine"
 ]

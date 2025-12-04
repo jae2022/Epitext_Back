@@ -1,7 +1,7 @@
 """
 Flask 애플리케이션 진입점
 """
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config
 from models import db
@@ -46,6 +46,13 @@ def create_app():
     @app.route('/health')
     def health():
         return {'status': 'healthy'}
+    
+    # 이미지 서빙 (정적 파일)
+    @app.route('/images/<path:filename>')
+    def serve_image(filename):
+        """이미지 파일 서빙 (원본, 전처리된 이미지, 크롭 이미지)"""
+        images_folder = Config.IMAGES_FOLDER
+        return send_from_directory(images_folder, filename)
     
     return app
 
