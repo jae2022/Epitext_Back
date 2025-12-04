@@ -1,13 +1,14 @@
 """
 Flask 애플리케이션 진입점
 """
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from config import Config
 from models import db
 from routes.rubbings import rubbings_bp
 from routes.targets import targets_bp
 from routes.inspection import inspection_bp
+from routes.translation import translation_bp
 import os
 
 def create_app():
@@ -25,6 +26,7 @@ def create_app():
     app.register_blueprint(rubbings_bp)
     app.register_blueprint(targets_bp)
     app.register_blueprint(inspection_bp)
+    app.register_blueprint(translation_bp)
     
     # 필요한 디렉토리 생성
     os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
@@ -44,6 +46,15 @@ def create_app():
     @app.route('/health')
     def health():
         return {'status': 'healthy'}
+    
+    # 이미지 서빙 (정적 파일)
+    @app.route('/images/<path:filename>')
+    def serve_image(filename):
+        """이미지 파일 서빙 (원본, 전처리된 이미지, 크롭 이미지)"""
+        # IMAGES_FOLDER = './images/rubbings'
+        # filename은 'original/xxx.jpg' 또는 'processed/cropped/xxx.jpg' 형태
+        images_folder = Config.IMAGES_FOLDER
+        return send_from_directory(images_folder, filename)
     
     return app
 

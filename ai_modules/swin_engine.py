@@ -388,7 +388,7 @@ class SwinMask2Engine:
                 results.append({
                     "order": item.order,
                     "type": "MASK2",
-                    "top_10": []
+                    "top_20": []
                 })
                 continue
             
@@ -403,7 +403,7 @@ class SwinMask2Engine:
             results.append({
                 "order": item.order,
                 "type": "MASK2",
-                "top_10": predictions  # 이미 token/probability 형식
+                "top_20": predictions  # 이미 token/probability 형식 (top_k=20)
             })
             
             # 진행 상황 로깅
@@ -503,7 +503,7 @@ class SwinMask2Engine:
     
     def _calculate_statistics(self, results: List[Dict]) -> Dict:
         """통계 계산"""
-        valid_results = [r for r in results if r.get('top_10')]
+        valid_results = [r for r in results if r.get('top_20')]
         
         if not valid_results:
             return {
@@ -514,9 +514,9 @@ class SwinMask2Engine:
             }
         
         top1_probs = [
-            r['top_10'][0]['probability'] 
+            r['top_20'][0]['probability'] 
             for r in valid_results 
-            if r.get('top_10')
+            if r.get('top_20')
         ]
         
         return {
