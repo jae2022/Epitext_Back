@@ -1,0 +1,23 @@
+{
+  "module_info": {
+    "name": "nlp_processor",
+    "version": "1.0.0",
+    "description": "Historical Korean Punctuation Restoration & MLM"
+  },
+  "punc_model": {
+    "model_tag": "seyoungsong/SikuRoBERTa-PUNC-AJD-KLC",
+    "max_length": 512,
+    "window_size": 400,
+    "overlap": 100
+  },
+  "mlm_model": {
+    "model_name": "jhangyejin/epitext-sikuroberta",
+    "top_k": 10,
+    "max_length": 512
+  },
+  "tokens": {
+    "mask_token": "[MASK]",
+    "mask_replacement": "□"
+  }
+}
+

@@ -725,14 +725,29 @@ class OCREngine:
             # 4. Ensemble
             final_boxes, result_lines = ensemble_reconstruction(google_syms, custom_syms, img_binary, self.config)
             
+            # Format results according to specification
+            formatted_results = []
+            for order, box in enumerate(final_boxes):
+                formatted_results.append({
+                    "order": order,
+                    "text": box.get('text', ''),
+                    "type": box.get('type', 'TEXT'),
+                    "box": [
+                        float(box.get('min_x', 0)),
+                        float(box.get('min_y', 0)),
+                        float(box.get('max_x', 0)),
+                        float(box.get('max_y', 0))
+                    ],
+                    "confidence": float(box.get('confidence', 0.0)),
+                    "source": box.get('source', 'Unknown')
+                })
+            
+            # Extract image filename
+            image_filename = os.path.basename(image_path)
+            
             return {
-                "success": True,
-                "google_count": len(google_syms),
-                "custom_count": len(custom_syms),
-                "final_count": len(final_boxes),
-                "columns": len(result_lines),
-                "results": final_boxes,
-                "text_lines": result_lines
+                "image": image_filename,
+                "results": formatted_results
             }
         except Exception as e:
             logger.error(f"[OCR] Execution Failed: {e}", exc_info=True)
