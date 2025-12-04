@@ -171,14 +171,14 @@ class NLPEngine:
                     formatted_results.append({
                         "order": mask_info['order'],
                         "type": mask_info['type'],
-                        "top_10": pred_list[:10]  # Top-10 predictions
+                        "top_20": pred_list[:20]  # Top-20 predictions
                     })
                 else:
                     # Fallback if mask_info_list is shorter
                     formatted_results.append({
                         "order": idx,
                         "type": "MASK2",
-                        "top_10": pred_list[:10]
+                        "top_20": pred_list[:20]
                     })
             
             # Calculate statistics

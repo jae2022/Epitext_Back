@@ -114,6 +114,7 @@ def find_target_line_and_replace(rubbing_id, target_id, replacement_char=None):
     
     # 6. 글자 치환 (replacement_char가 있을 때만)
     final_text = original_line
+    char_index_in_line = -1  # 선택된 글자의 정확한 인덱스 위치
     if replacement_char:
         chars = list(original_line)
         seen_masks = 0
@@ -121,11 +122,21 @@ def find_target_line_and_replace(rubbing_id, target_id, replacement_char=None):
             if char == '□':
                 if seen_masks == mask_index_in_line:
                     chars[i] = replacement_char
+                    char_index_in_line = i  # 치환된 위치 저장
                     break
                 seen_masks += 1
         final_text = "".join(chars)
+    else:
+        # replacement_char가 없어도 □의 위치를 찾아서 반환
+        seen_masks = 0
+        for i, char in enumerate(original_line):
+            if char == '□':
+                if seen_masks == mask_index_in_line:
+                    char_index_in_line = i
+                    break
+                seen_masks += 1
         
-    return final_text, None
+    return final_text, char_index_in_line
 
 
 # -------------------------------------------------------------------------
@@ -135,10 +146,10 @@ def find_target_line_and_replace(rubbing_id, target_id, replacement_char=None):
 def get_target_translation(rubbing_id, target_id):
     try:
         # 위 헬퍼 함수를 사용해 정확한 줄의 텍스트를 가져옴 (치환 없음)
-        line_text, error = find_target_line_and_replace(rubbing_id, target_id, replacement_char=None)
+        line_text, char_index = find_target_line_and_replace(rubbing_id, target_id, replacement_char=None)
         
-        if error:
-            return jsonify({'error': error}), 404
+        if isinstance(char_index, str):  # error 메시지인 경우
+            return jsonify({'error': char_index}), 404
             
         logger.info(f"[TRANSLATION] 행 번역 요청: {line_text}")
 
@@ -152,7 +163,8 @@ def get_target_translation(rubbing_id, target_id):
                 'original': line_text,
                 'translation': result.get('translation', ''),
                 'reading': result.get('reading', ''),
-                'entities': result.get('entities', '')
+                'entities': result.get('entities', ''),
+                'selected_char_index': char_index  # 선택된 글자의 정확한 인덱스 위치
             }), 200
         else:
             return jsonify({'error': result.get('error', 'Translation failed')}), 500
@@ -178,10 +190,10 @@ def preview_translation(rubbing_id, target_id):
             return jsonify({'error': 'selected_character is required'}), 400
             
         # 헬퍼 함수를 사용해 글자를 치환한 텍스트를 가져옴
-        modified_text, error = find_target_line_and_replace(rubbing_id, target_id, replacement_char=selected_character)
+        modified_text, char_index = find_target_line_and_replace(rubbing_id, target_id, replacement_char=selected_character)
         
-        if error:
-            return jsonify({'error': error}), 404
+        if isinstance(char_index, str):  # error 메시지인 경우
+            return jsonify({'error': char_index}), 404
             
         logger.info(f"[TRANSLATION] 미리보기 요청 (치환: {selected_character}): {modified_text}")
         
@@ -194,7 +206,8 @@ def preview_translation(rubbing_id, target_id):
                 'success': True,
                 'original': modified_text,  # 치환된 텍스트 반환
                 'translation': result.get('translation', ''),
-                'reading': result.get('reading', '')
+                'reading': result.get('reading', ''),
+                'selected_char_index': char_index  # 선택된 글자의 정확한 인덱스 위치
             }), 200
         else:
             return jsonify({'error': result.get('error')}), 500

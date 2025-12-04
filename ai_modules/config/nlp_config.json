@@ -12,7 +12,7 @@
   },
   "mlm_model": {
     "model_name": "jhangyejin/epitext-sikuroberta",
-    "top_k": 10,
+    "top_k": 20,
     "max_length": 512
   },
   "tokens": {

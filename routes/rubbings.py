@@ -29,8 +29,8 @@ def combine_mlm_and_swin(mlm_results, swin_results):
     MLM과 Swin 결과를 합쳐서 최종 복원 후보를 생성합니다.
     
     Args:
-        mlm_results: NLP 엔진의 MLM 예측 결과 (order별 top_10 리스트)
-        swin_results: Swin 엔진의 복원 결과 (order별 top_10 리스트)
+        mlm_results: NLP 엔진의 MLM 예측 결과 (order별 top_20 리스트)
+        swin_results: Swin 엔진의 복원 결과 (order별 top_20 리스트)
     
     Returns:
         order별 최종 후보 딕셔너리 {order: [candidate_dict, ...]}
@@ -42,7 +42,7 @@ def combine_mlm_and_swin(mlm_results, swin_results):
     for item in swin_results.get('results', []):
         order = item.get('order', -1)
         if order >= 0:
-            swin_by_order[order] = item.get('top_10', [])
+            swin_by_order[order] = item.get('top_20', [])
     
     # MLM 결과를 order별로 처리
     for mlm_item in mlm_results.get('results', []):
@@ -50,16 +50,16 @@ def combine_mlm_and_swin(mlm_results, swin_results):
         if order < 0:
             continue
         
-        mlm_top10 = mlm_item.get('top_10', [])
-        swin_top10 = swin_by_order.get(order, [])
+        mlm_top20 = mlm_item.get('top_20', [])
+        swin_top20 = swin_by_order.get(order, [])
         
         # MLM top-1과 Swin top-1 추출
-        mlm_top1_char = mlm_top10[0].get('token', '') if mlm_top10 else None
-        swin_top1_char = swin_top10[0].get('token', '') if swin_top10 else None
+        mlm_top1_char = mlm_top20[0].get('token', '') if mlm_top20 else None
+        swin_top1_char = swin_top20[0].get('token', '') if swin_top20 else None
         
-        # 교집합 계산: MLM과 Swin 둘 다 있는 후보
-        mlm_chars = {pred.get('token', ''): pred for pred in mlm_top10}
-        swin_chars = {pred.get('token', ''): pred for pred in swin_top10}
+        # 교집합 계산: MLM과 Swin 둘 다 있는 후보 (각각 20개씩 비교)
+        mlm_chars = {pred.get('token', ''): pred for pred in mlm_top20}
+        swin_chars = {pred.get('token', ''): pred for pred in swin_top20}
         intersection_chars = set(mlm_chars.keys()) & set(swin_chars.keys())
         
         candidates = []
@@ -85,8 +85,8 @@ def combine_mlm_and_swin(mlm_results, swin_results):
                 'context_match': context_match,
                 'reliability': reliability,
                 'model_type': 'both',
-                'rank_vision': swin_top10.index(swin_pred) + 1 if swin_pred in swin_top10 else None,
-                'rank_nlp': mlm_top10.index(mlm_pred) + 1 if mlm_pred in mlm_top10 else None
+                'rank_vision': swin_top20.index(swin_pred) + 1 if swin_pred in swin_top20 else None,
+                'rank_nlp': mlm_top20.index(mlm_pred) + 1 if mlm_pred in mlm_top20 else None
             })
         
         # 2. MLM만 있는 후보들 (문맥 일치도 우선)
@@ -100,7 +100,7 @@ def combine_mlm_and_swin(mlm_results, swin_results):
                     'reliability': context_match,  # 문맥 일치도가 전체 신뢰도
                     'model_type': 'nlp',
                     'rank_vision': None,
-                    'rank_nlp': mlm_top10.index(mlm_pred) + 1 if mlm_pred in mlm_top10 else None
+                    'rank_nlp': mlm_top20.index(mlm_pred) + 1 if mlm_pred in mlm_top20 else None
                 })
         
         # 3. Swin만 있는 후보들 (획 일치도만)
@@ -113,7 +113,7 @@ def combine_mlm_and_swin(mlm_results, swin_results):
                     'context_match': None,
                     'reliability': stroke_match,  # 획 일치도가 전체 신뢰도
                     'model_type': 'vision',
-                    'rank_vision': swin_top10.index(swin_pred) + 1 if swin_pred in swin_top10 else None,
+                    'rank_vision': swin_top20.index(swin_pred) + 1 if swin_pred in swin_top20 else None,
                     'rank_nlp': None
                 })
         
@@ -276,9 +276,9 @@ def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined
             db.session.add(target)
             db.session.flush()
             
-            # 후보 한자 저장
+            # 후보 한자 저장 (20개까지 저장)
             candidates = combined_candidates.get(order, [])
-            for candidate in candidates[:10]:
+            for candidate in candidates[:20]:
                 if not candidate or not candidate.get('character'):
                     continue
                 
@@ -720,7 +720,7 @@ def upload_rubbing():
                         for item in nlp_result.get('results', []):
                             order = item.get('order', -1)
                             if order >= 0:
-                                top10 = item.get('top_10', [])
+                                top20 = item.get('top_20', [])
                                 combined_candidates[order] = [
                                     {
                                         'character': pred.get('token', ''),
@@ -731,7 +731,7 @@ def upload_rubbing():
                                         'rank_vision': None,
                                         'rank_nlp': idx + 1
                                     }
-                                    for idx, pred in enumerate(top10[:10])
+                                    for idx, pred in enumerate(top20[:20])
                                 ]
                     # ==================================================================
                     

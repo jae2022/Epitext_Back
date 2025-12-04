@@ -24,12 +24,12 @@ def calculate_status(processing_time, damage_level):
     
     damage_level = float(damage_level)
     
-    if damage_level < 10:
-        return "우수"      # 10% 미만
-    elif damage_level < 30:
-        return "양호"      # 10% 이상 30% 미만
+    if damage_level < 5:
+        return "우수"      # 5% 미만
+    elif damage_level < 15:
+        return "양호"      # 5% 이상 15% 미만
     else:
-        return "미흡"      # 30% 이상
+        return "미흡"      # 15% 이상
 
 
 def calculate_damage_level(total_characters, restoration_targets):
