@@ -447,27 +447,33 @@ class UnifiedImagePreprocessor:
                     logger.info(f"[DETECT] 텍스트 영역 검출: {bbox_final}")
             
             x, y, w, h = bbox_final
+            
+            # ====================================================================
+            # [수정] Step 5: Swin용 - 원본 컬러 이미지를 그대로 크롭 (변형 없음)
+            # ====================================================================
+            # 원본 컬러(BGR) 이미지에서 직접 크롭 (색상 정보 유지, 변환 없음)
+            # 로컬 스크립트와 동일: BGR 그대로 저장, _predict_top_k에서 RGB 변환
+            swin_output_bgr = img_bgr[y:y+h, x:x+w]
+            
+            # ====================================================================
+            # Step 6: OCR용 - 그레이스케일 크롭 및 이진화
+            # ====================================================================
             gray_cropped = gray[y:y+h, x:x+w]
-            
-            logger.info(f"[CROP] 크롭 완료: {gray_cropped.shape}")
-            
-            # ====================================================================
-            # Step 5: Swin Gray 처리
-            # ====================================================================
-            gray_bright, info_swin = self._ensure_bright_background(gray_cropped)
-            swin_output_3ch = cv2.cvtColor(gray_bright, cv2.COLOR_GRAY2BGR)
-            
-            # ====================================================================
-            # Step 6: OCR 처리
-            # ====================================================================
             binary_final, info_ocr = self._ensure_white_background(gray_cropped)
+            
+            logger.info(f"[CROP] 크롭 완료: Swin={swin_output_bgr.shape}, OCR={gray_cropped.shape}")
             
             # ====================================================================
             # Step 7: 동시 저장
             # ====================================================================
             output_swin_path_obj = Path(output_swin_path)
             output_swin_path_obj.parent.mkdir(parents=True, exist_ok=True)
-            swin_success = cv2.imwrite(str(output_swin_path_obj), swin_output_3ch)
+            # [수정] JPEG 품질 100으로 저장 (압축 손실 방지)
+            swin_success = cv2.imwrite(
+                str(output_swin_path_obj), 
+                swin_output_bgr, 
+                [int(cv2.IMWRITE_JPEG_QUALITY), 100]
+            )
             
             output_ocr_path_obj = Path(output_ocr_path)
             output_ocr_path_obj.parent.mkdir(parents=True, exist_ok=True)
@@ -476,29 +482,33 @@ class UnifiedImagePreprocessor:
             if not swin_success or not ocr_success:
                 raise ValueError("이미지 저장 실패")
             
-            logger.info(f"[SAVE] Swin 저장: {output_swin_path_obj}")
+            logger.info(f"[SAVE] Swin 저장: {output_swin_path_obj} (원본 BGR 컬러)")
             logger.info(f"[SAVE] OCR 저장: {output_ocr_path_obj}")
             
             # ====================================================================
             # 결과 반환
             # ====================================================================
+            # Swin용 밝기 계산 (참고용)
+            gray_for_swin = cv2.cvtColor(swin_output_bgr, cv2.COLOR_BGR2GRAY)
+            mean_brightness_swin = float(np.mean(gray_for_swin))
+            
             return {
                 "success": True,
-                "version": "Unified Swin Gray + OCR (v1.0.0)",
+                "version": "Unified Swin BGR + OCR (v1.2.0)",
                 "original_shape": original_shape,
                 "bbox": bbox_final,
                 "region_type": region_type,
                 "region_detected": detected_bbox is not None,
                 
-                # Swin 부분
+                # Swin 부분 (수정됨: 원본 BGR 컬러 그대로)
                 "swin": {
                     "output_path": str(output_swin_path_obj).replace("\\", "/"),
-                    "output_shape": swin_output_3ch.shape,
-                    "color_type": "Grayscale 3채널 (B=G=R, 비이진화 256단계)",
-                    "is_inverted": info_swin["is_inverted"],
-                    "mean_brightness_before": info_swin["mean_brightness_before"],
-                    "mean_brightness_after": info_swin["mean_brightness_after"],
-                    "is_bright_bg": info_swin["is_bright_bg"]
+                    "output_shape": swin_output_bgr.shape,
+                    "color_type": "원본 BGR 컬러 (변형 없음, _predict_top_k에서 RGB 변환)",
+                    "is_inverted": False,  # 컬러는 반전하지 않음
+                    "mean_brightness_before": mean_brightness_swin,
+                    "mean_brightness_after": mean_brightness_swin,
+                    "is_bright_bg": True  # 컬러는 배경 보정 없음
                 },
                 
                 # OCR 부분
@@ -511,7 +521,7 @@ class UnifiedImagePreprocessor:
                     "is_white_bg": info_ocr["is_white_bg"]
                 },
                 
-                "message": "[DONE] 통합 전처리 완료 (Swin + OCR)"
+                "message": "[DONE] 통합 전처리 완료 (Swin BGR 원본 + OCR)"
             }
         
         except Exception as e:
