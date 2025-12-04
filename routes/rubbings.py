@@ -171,6 +171,8 @@ def upload_rubbing():
     
     preprocess_success = False
     preprocess_message = None
+    ocr_result = None
+    swin_result = None
     
     try:
         # 1. 통합 전처리 실행
@@ -202,15 +204,40 @@ def upload_rubbing():
                     count = ocr_result.get('final_count', 0)
                     logger.info(f"[OCR] 분석 완료! 인식된 글자 수: {count}개")
                     
-                    # (선택사항) 여기서 ocr_result['results'] 데이터를 DB에 저장하는 로직을 추가할 수 있습니다.
-                    # 예: save_ocr_results_to_db(rubbing.id, ocr_result)
+                    # ==================================================================
+                    # [추가] 3. Swin MASK2 복원 실행
+                    # ==================================================================
+                    try:
+                        from ai_modules.swin_engine import get_swin_engine
+                        
+                        # Swin 엔진 로드
+                        swin_engine = get_swin_engine()
+                        
+                        # swin_path (전처리된 RGB 이미지)를 사용하여 MASK2 복원
+                        swin_result = swin_engine.run_swin_restoration(swin_path, ocr_result)
+                        
+                        restored_count = len(swin_result.get('results', []))
+                        if restored_count > 0:
+                            logger.info(f"[SWIN] MASK2 복원 완료: {restored_count}개")
+                            
+                            stats = swin_result.get('statistics', {})
+                            if stats:
+                                logger.info(f"  - 평균 신뢰도: {stats.get('top1_probability_avg', 0):.2%}")
+                                logger.info(f"  - 최소 신뢰도: {stats.get('top1_probability_min', 0):.2%}")
+                                logger.info(f"  - 최대 신뢰도: {stats.get('top1_probability_max', 0):.2%}")
+                        else:
+                            logger.info("[SWIN] 복원할 MASK2 항목이 없습니다.")
+                            
+                    except Exception as swin_e:
+                        logger.error(f"[SWIN] 실행 중 예외 발생: {swin_e}", exc_info=True)
+                    # ==================================================================
                     
                 else:
                     error_msg = ocr_result.get('error', 'Unknown Error')
                     logger.error(f"[OCR] 분석 실패: {error_msg}")
                     
             except Exception as ocr_e:
-                logger.error(f"[OCR] 실행 중 예외 발생: {ocr_e}")
+                logger.error(f"[OCR] 실행 중 예외 발생: {ocr_e}", exc_info=True)
             # ==================================================================
 
         else:
@@ -251,6 +278,14 @@ def upload_rubbing():
             'success': False,
             'message': preprocess_message
         }
+    
+    # OCR 결과 추가
+    if ocr_result:
+        response_data['ocr'] = ocr_result
+    
+    # Swin 복원 결과 추가
+    if swin_result:
+        response_data['swin'] = swin_result
     
     return jsonify(response_data), 201
 

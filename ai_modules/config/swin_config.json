@@ -1,0 +1,21 @@
+{
+  "module_info": {
+    "name": "swin_mask2_restorer",
+    "version": "1.0.0",
+    "description": "Swin Transformer MASK2 Restoration"
+  },
+  "model_config": {
+    "model_name": "swinv2_small_window16_256",
+    "img_size": 256,
+    "top_k": 20,
+    "device": "auto"
+  },
+  "preprocessing": {
+    "normalize_mean": [0.485, 0.456, 0.406],
+    "normalize_std": [0.229, 0.224, 0.225]
+  },
+  "logging": {
+    "level": "INFO"
+  }
+}
+

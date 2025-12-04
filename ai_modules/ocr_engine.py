@@ -705,11 +705,19 @@ class OCREngine:
         try:
             self._load_models()
             
-            # 1. Preprocessing (Exact Match to v12 Script)
+            # 1. 이미지 로드
             img_bgr = cv2.imread(image_path)
             if img_bgr is None: raise ValueError(f"Image not found: {image_path}")
             
             img_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+            
+            # [핵심] 배경색 자동 감지 및 보정 (v12 성능 재현의 열쇠)
+            # 검은 배경(평균<127)인 경우 반전시켜 흰 배경으로 만듦
+            if np.mean(img_gray) < 127:
+                logger.info("[OCR] 어두운 배경 감지 -> 색상 반전 수행")
+                img_gray = cv2.bitwise_not(img_gray)
+            
+            # 2. v12 전처리 파이프라인 (블러 -> 이진화 -> 닫기)
             img_blur = cv2.medianBlur(img_gray, 3)
             _, img_binary = cv2.threshold(img_blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
             kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
@@ -724,6 +732,10 @@ class OCREngine:
             
             # 4. Ensemble
             final_boxes, result_lines = ensemble_reconstruction(google_syms, custom_syms, img_binary, self.config)
+            
+            # order 추가
+            for idx, box in enumerate(final_boxes):
+                box['order'] = idx
             
             return {
                 "success": True,
