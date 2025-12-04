@@ -141,9 +141,9 @@ class Candidate(db.Model):
     target_id = db.Column(db.Integer, db.ForeignKey('restoration_targets.id', ondelete='CASCADE'), nullable=False)
     character = db.Column(db.String(10), nullable=False)  # 후보 한자
     stroke_match = db.Column(db.Numeric(5, 2))  # 획 일치도 (null 가능)
-    context_match = db.Column(db.Numeric(5, 2), nullable=False)  # 문맥 일치도
+    context_match = db.Column(db.Numeric(5, 2))  # 문맥 일치도 (null 가능)
     rank_vision = db.Column(db.Integer)  # Vision 모델 순위 (null 가능)
-    rank_nlp = db.Column(db.Integer, nullable=False)  # NLP 모델 순위
+    rank_nlp = db.Column(db.Integer)  # NLP 모델 순위 (null 가능)
     model_type = db.Column(db.String(10))  # "nlp", "both", "vision"
     reliability = db.Column(db.Numeric(5, 2))  # 최종 신뢰도 (F1 Score)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

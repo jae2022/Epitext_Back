@@ -282,9 +282,9 @@ def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined
                         target_id=target.id,
                         character=str(candidate['character'])[:10],  # 최대 10자
                         stroke_match=safe_decimal(candidate.get('stroke_match'), None),
-                        context_match=safe_decimal(candidate.get('context_match'), 0),
+                        context_match=safe_decimal(candidate.get('context_match'), None),  # Vision만 있는 경우 None 가능
                         rank_vision=candidate.get('rank_vision'),
-                        rank_nlp=candidate.get('rank_nlp'),
+                        rank_nlp=candidate.get('rank_nlp'),  # Vision만 있는 경우 None 가능
                         model_type=str(candidate.get('model_type', 'nlp'))[:10],
                         reliability=safe_decimal(candidate.get('reliability'), 0)
                     )
