@@ -733,11 +733,6 @@ class OCREngine:
             # 4. Ensemble
             final_boxes, result_lines = ensemble_reconstruction(google_syms, custom_syms, img_binary, self.config)
             
-<<<<<<< HEAD
-            # order 추가
-            for idx, box in enumerate(final_boxes):
-                box['order'] = idx
-=======
             # Format results according to specification
             formatted_results = []
             for order, box in enumerate(final_boxes):
@@ -757,7 +752,6 @@ class OCREngine:
             
             # Extract image filename
             image_filename = os.path.basename(image_path)
->>>>>>> main
             
             return {
                 "image": image_filename,
