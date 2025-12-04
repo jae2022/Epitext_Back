@@ -674,10 +674,16 @@ class OCREngine:
         self.config = load_ocr_config(config_path)
         
         # Load paths from env
-        base_path = os.getenv('OCR_WEIGHTS_BASE_PATH', '/Users/jincerity/Desktop/ocr_weight')
+        base_path = os.getenv('OCR_WEIGHTS_BASE_PATH')
+        if not base_path:
+            raise ValueError("OCR_WEIGHTS_BASE_PATH environment variable is required. Please set it in your .env file.")
+        
         self.det_ckpt = os.path.join(base_path, os.getenv('OCR_DETECTION_MODEL', 'best.pth'))
         self.rec_ckpt = os.path.join(base_path, os.getenv('OCR_RECOGNITION_MODEL', 'best_5000.pt'))
-        self.google_json = os.path.join(base_path, os.getenv('GOOGLE_CREDENTIALS_JSON', 'tidy-node-479900-m7-a4e08301ce8e.json'))
+        self.google_json = os.path.join(base_path, os.getenv('GOOGLE_CREDENTIALS_JSON'))
+        
+        if not self.google_json or not os.path.exists(self.google_json):
+            raise ValueError(f"GOOGLE_CREDENTIALS_JSON environment variable is required and file must exist. Please set it in your .env file.")
         
         if os.path.exists(self.google_json):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.google_json
