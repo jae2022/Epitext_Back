@@ -52,9 +52,10 @@ class TranslationEngine:
         self.config = self._load_config(config_path)
         
         # API 키 로드 (환경 변수)
-        self.api_key = os.getenv("GEMINI_API_KEY")
+        # 번역 전용 API 키 사용 (GEMINI_TRANSLATION_API_KEY 우선, 없으면 GEMINI_API_KEY 사용)
+        self.api_key = os.getenv("GEMINI_TRANSLATION_API_KEY") or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
-            logger.warning("[TRANSLATION] GEMINI_API_KEY가 설정되지 않았습니다.")
+            logger.warning("[TRANSLATION] GEMINI_TRANSLATION_API_KEY 또는 GEMINI_API_KEY가 설정되지 않았습니다.")
             self.client = None
         else:
             if not HAS_GEMINI:
