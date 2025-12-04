@@ -37,6 +37,11 @@ from .ocr_engine import (
     OCREngine,
     ocr_and_detect
 )
+from .nlp_engine import (
+    get_nlp_engine,
+    NLPEngine,
+    process_text_with_nlp
+)
 
 __version__ = "1.0.0"
 __author__ = "Epitext Team"
@@ -47,6 +52,9 @@ __all__ = [
     "preprocess_image_unified",
     "get_ocr_engine",
     "OCREngine",
-    "ocr_and_detect"
+    "ocr_and_detect",
+    "get_nlp_engine",
+    "NLPEngine",
+    "process_text_with_nlp"
 ]
 
