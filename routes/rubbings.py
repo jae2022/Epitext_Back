@@ -189,16 +189,26 @@ def save_results_to_db(rubbing_id, ocr_result, nlp_result, swin_result, combined
             
             text_lines.append(line_str)
         
-        # 2. NLP 결과 텍스트 (구두점 포함)
+        # 2. NLP 결과 텍스트 (구두점 포함 및 줄바꿈 처리)
         text_with_punc_lines = []
         punctuated_text = nlp_result.get('punctuated_text_with_masks', '')
+        
         if punctuated_text:
-            text_with_punc_lines = [line for line in punctuated_text.split('\n') if line.strip()]
+            # [핵심] 사용자가 요청한 표점(. ? ! ,) 및 한자 표점(。 ， 、) 뒤에 강제 개행 추가
+            # 정규표현식을 사용하여 표점 뒤에 \n을 삽입합니다.
+            # 패턴: 마침표, 물음표, 느낌표, 쉼표 등
+            # ([.?!,。，、]) -> 해당 기호 뒤에 줄바꿈 문자 추가
+            processed_text = re.sub(r'([.?!,。，、])', r'\1\n', punctuated_text)
+            
+            # 개행 문자로 분리하여 리스트 생성 (빈 줄 제거)
+            text_with_punc_lines = [line.strip() for line in processed_text.split('\n') if line.strip()]
+            
         if not text_with_punc_lines:
+            # NLP 실패 시 원본 줄바꿈 사용
             text_with_punc_lines = text_lines
         
-        # 3. DB 저장: RubbingDetail
-        end_time = datetime.utcnow()
+        # 3. DB 저장: RubbingDetail (KST 사용)
+        end_time = datetime.now()
         processing_time_seconds = int((end_time - start_time).total_seconds())
         
         detail = RubbingDetail(
@@ -593,8 +603,8 @@ def upload_rubbing():
         safe_filename
     )
     
-    # 처리 시작 시간 기록
-    processing_start_time = datetime.utcnow()
+    # 처리 시작 시간 기록 (KST 사용)
+    processing_start_time = datetime.now()
     
     # ------------------------------------------------------------------
     # [추가] AI 전처리 모듈 실행 (Integration)
