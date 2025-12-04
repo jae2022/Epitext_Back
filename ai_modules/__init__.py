@@ -42,6 +42,10 @@ from .nlp_engine import (
     NLPEngine,
     process_text_with_nlp
 )
+from .translation_engine import (
+    get_translation_engine,
+    TranslationEngine
+)
 
 __version__ = "1.0.0"
 __author__ = "Epitext Team"
@@ -55,6 +59,8 @@ __all__ = [
     "ocr_and_detect",
     "get_nlp_engine",
     "NLPEngine",
-    "process_text_with_nlp"
+    "process_text_with_nlp",
+    "get_translation_engine",
+    "TranslationEngine"
 ]
 

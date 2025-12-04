@@ -21,3 +21,6 @@ timm>=0.9.0
 transformers>=4.30.0
 huggingface-hub>=0.16.0
 
+# AI Modules - Translation
+google-genai
+

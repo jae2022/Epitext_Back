@@ -8,6 +8,7 @@ from models import db
 from routes.rubbings import rubbings_bp
 from routes.targets import targets_bp
 from routes.inspection import inspection_bp
+from routes.translation import translation_bp
 import os
 
 def create_app():
@@ -25,6 +26,7 @@ def create_app():
     app.register_blueprint(rubbings_bp)
     app.register_blueprint(targets_bp)
     app.register_blueprint(inspection_bp)
+    app.register_blueprint(translation_bp)
     
     # 필요한 디렉토리 생성
     os.makedirs(Config.UPLOAD_FOLDER, exist_ok=True)
