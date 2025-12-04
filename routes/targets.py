@@ -72,8 +72,15 @@ def get_restoration_targets(rubbing_id):
             elif merged_candidates[char]['context_match'] is not None:
                 merged_candidates[char]['model_type'] = 'nlp'
         
-        # 3. 신뢰도(F1) 계산 및 정렬 로직 적용
-        final_candidates = []
+        # 3. 계층적 우선순위 정렬 로직 (Tiered Priority)
+        # 1순위: 교집합 (Intersection) - Swin과 NLP가 동시에 추천
+        # 2순위: 문맥 우선 (NLP Only) - Context Match 높은 순
+        # 3순위: 모양 우선 (Swin Only) - Stroke Match 높은 순
+        
+        tier1_intersection = []  # 교집합
+        tier2_nlp_only = []      # NLP Only
+        tier3_swin_only = []     # Swin Only
+        
         for char, data in merged_candidates.items():
             swin = data['stroke_match']
             mlm = data['context_match']
@@ -82,44 +89,60 @@ def get_restoration_targets(rubbing_id):
             if swin is not None and mlm is not None:
                 # 교집합: F1 Score 계산
                 data['reliability'] = calculate_f1(swin, mlm)
+                tier1_intersection.append(data)
             elif mlm is not None:
-                # MLM만 있는 경우
+                # NLP만 있는 경우
                 data['reliability'] = mlm
+                tier2_nlp_only.append(data)
             elif swin is not None:
                 # Swin만 있는 경우
                 data['reliability'] = swin
-            
-            final_candidates.append(data)
+                tier3_swin_only.append(data)
         
-        # 4. 정렬 (프론트엔드 요구사항: 교집합 F1순 -> 그 외 점수순)
-        # 교집합 여부(swin & mlm 둘 다 있음)를 우선순위로 둠
-        final_candidates.sort(
-            key=lambda x: (
-                1 if (x['stroke_match'] is not None and x['context_match'] is not None) else 0,  # 교집합 우선
-                x['reliability']  # 점수 높은 순
-            ),
-            reverse=True
-        )
+        # 각 그룹 정렬
+        # 1순위: 교집합 - F1 Score 높은 순
+        tier1_intersection.sort(key=lambda x: x['reliability'], reverse=True)
+        # 2순위: NLP Only - Context Match 높은 순
+        tier2_nlp_only.sort(key=lambda x: x['context_match'], reverse=True)
+        # 3순위: Swin Only - Stroke Match 높은 순
+        tier3_swin_only.sort(key=lambda x: x['stroke_match'], reverse=True)
         
-        # 상위 5개만 유지 (부족하면 null로 채움)
+        # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위, 2순위가 부족하면 3순위)
         top5_candidates = []
-        for i in range(5):
-            if i < len(final_candidates):
-                top5_candidates.append(final_candidates[i])
-            else:
-                # null 값으로 채움
-                top5_candidates.append({
-                    "character": None,
-                    "stroke_match": None,
-                    "context_match": None,
-                    "reliability": None,
-                    "rank_vision": None,
-                    "rank_nlp": None,
-                    "model_type": None
-                })
+        remaining = 5
         
-        # 전체 후보 (시각화용)
-        all_candidates = final_candidates[:10]  # 상위 10개
+        # 1순위에서 가져오기
+        for candidate in tier1_intersection[:remaining]:
+            top5_candidates.append(candidate)
+            remaining -= 1
+        
+        # 2순위에서 가져오기 (1순위가 부족할 때만)
+        if remaining > 0:
+            for candidate in tier2_nlp_only[:remaining]:
+                top5_candidates.append(candidate)
+                remaining -= 1
+        
+        # 3순위에서 가져오기 (1순위와 2순위가 부족할 때만)
+        if remaining > 0:
+            for candidate in tier3_swin_only[:remaining]:
+                top5_candidates.append(candidate)
+                remaining -= 1
+        
+        # 부족한 경우 null로 채움
+        while remaining > 0:
+            top5_candidates.append({
+                "character": None,
+                "stroke_match": None,
+                "context_match": None,
+                "reliability": None,
+                "rank_vision": None,
+                "rank_nlp": None,
+                "model_type": None
+            })
+            remaining -= 1
+        
+        # 전체 후보 (시각화용) - 모든 그룹을 합쳐서 상위 10개
+        all_candidates = (tier1_intersection + tier2_nlp_only + tier3_swin_only)[:10]
         
         # 5. 데이터 구조화
         response_data.append({
@@ -185,48 +208,77 @@ def get_candidates(rubbing_id, target_id):
         elif merged_candidates[char]['context_match'] is not None:
             merged_candidates[char]['model_type'] = 'nlp'
     
-    # 신뢰도 계산
-    final_candidates = []
+    # 계층적 우선순위 정렬 로직 (Tiered Priority)
+    # 1순위: 교집합 (Intersection) - Swin과 NLP가 동시에 추천
+    # 2순위: 문맥 우선 (NLP Only) - Context Match 높은 순
+    # 3순위: 모양 우선 (Swin Only) - Stroke Match 높은 순
+    
+    tier1_intersection = []  # 교집합
+    tier2_nlp_only = []      # NLP Only
+    tier3_swin_only = []     # Swin Only
+    
     for char, data in merged_candidates.items():
         swin = data['stroke_match']
         mlm = data['context_match']
         
+        # 신뢰도 계산
         if swin is not None and mlm is not None:
+            # 교집합: F1 Score 계산
             data['reliability'] = calculate_f1(swin, mlm)
+            tier1_intersection.append(data)
         elif mlm is not None:
+            # NLP만 있는 경우
             data['reliability'] = mlm
+            tier2_nlp_only.append(data)
         elif swin is not None:
+            # Swin만 있는 경우
             data['reliability'] = swin
-        
-        final_candidates.append(data)
+            tier3_swin_only.append(data)
     
-    # 정렬
-    final_candidates.sort(
-        key=lambda x: (
-            1 if (x['stroke_match'] is not None and x['context_match'] is not None) else 0,
-            x['reliability']
-        ),
-        reverse=True
-    )
+    # 각 그룹 정렬
+    # 1순위: 교집합 - F1 Score 높은 순
+    tier1_intersection.sort(key=lambda x: x['reliability'], reverse=True)
+    # 2순위: NLP Only - Context Match 높은 순
+    tier2_nlp_only.sort(key=lambda x: x['context_match'], reverse=True)
+    # 3순위: Swin Only - Stroke Match 높은 순
+    tier3_swin_only.sort(key=lambda x: x['stroke_match'], reverse=True)
     
-    # 상위 5개
+    # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위, 2순위가 부족하면 3순위)
     top5_candidates = []
-    for i in range(5):
-        if i < len(final_candidates):
-            top5_candidates.append(final_candidates[i])
-        else:
-            top5_candidates.append({
-                "character": None,
-                "stroke_match": None,
-                "context_match": None,
-                "reliability": None,
-                "rank_vision": None,
-                "rank_nlp": None,
-                "model_type": None
-            })
+    remaining = 5
     
-    # 전체 후보 (상위 10개)
-    all_candidates = final_candidates[:10]
+    # 1순위에서 가져오기
+    for candidate in tier1_intersection[:remaining]:
+        top5_candidates.append(candidate)
+        remaining -= 1
+    
+    # 2순위에서 가져오기 (1순위가 부족할 때만)
+    if remaining > 0:
+        for candidate in tier2_nlp_only[:remaining]:
+            top5_candidates.append(candidate)
+            remaining -= 1
+    
+    # 3순위에서 가져오기 (1순위와 2순위가 부족할 때만)
+    if remaining > 0:
+        for candidate in tier3_swin_only[:remaining]:
+            top5_candidates.append(candidate)
+            remaining -= 1
+    
+    # 부족한 경우 null로 채움
+    while remaining > 0:
+        top5_candidates.append({
+            "character": None,
+            "stroke_match": None,
+            "context_match": None,
+            "reliability": None,
+            "rank_vision": None,
+            "rank_nlp": None,
+            "model_type": None
+        })
+        remaining -= 1
+    
+    # 전체 후보 (시각화용) - 모든 그룹을 합쳐서 상위 10개
+    all_candidates = (tier1_intersection + tier2_nlp_only + tier3_swin_only)[:10]
     
     return jsonify({
         'top5': top5_candidates,
