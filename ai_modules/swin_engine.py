@@ -184,26 +184,16 @@ class SwinMask2Engine:
                     self.device = None
                     return
         else:
-            # 폴백 경로 (로컬 테스트용)
-            fallback_best = "/Users/jincerity/Desktop/swin_checkpoint/best_model.pth"
-            fallback_last = "/Users/jincerity/Desktop/swin_checkpoint/last_checkpoint.pth"
-            
-            if os.path.exists(fallback_best):
-                self.checkpoint_path = fallback_best
-                logger.info(f"[SWIN-INIT] Fallback (best_model.pth) 사용: {self.checkpoint_path}")
-            elif os.path.exists(fallback_last):
-                self.checkpoint_path = fallback_last
-                logger.info(f"[SWIN-INIT] Fallback (last_checkpoint.pth) 사용: {self.checkpoint_path}")
-            else:
-                logger.warning(f"[SWIN-INIT] 체크포인트 없음. 엔진을 사용할 수 없습니다.")
-                logger.warning(f"  - 환경 변수 SWIN_CHECKPOINT_PATH가 설정되지 않았습니다.")
-                logger.warning(f"  - 폴백 경로도 존재하지 않습니다: {fallback_best}, {fallback_last}")
-                self.model = None
-                self.transform = None
-                self.num_classes = None
-                self.idx2char = None
-                self.device = None
-                return
+            # 환경 변수가 설정되지 않은 경우
+            logger.error(f"[SWIN-INIT] 체크포인트 경로가 설정되지 않았습니다.")
+            logger.error(f"  - .env 파일에 SWIN_CHECKPOINT_PATH를 설정하세요.")
+            logger.error(f"  - 예: SWIN_CHECKPOINT_PATH=/path/to/swin_checkpoint")
+            self.model = None
+            self.transform = None
+            self.num_classes = None
+            self.idx2char = None
+            self.device = None
+            return
         
         # 2. 디바이스 설정
         dev_cfg = self.config['model_config'].get('device', 'auto')
