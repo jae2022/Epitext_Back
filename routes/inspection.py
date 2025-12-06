@@ -38,19 +38,33 @@ def inspect_target(rubbing_id, target_id):
         if candidate:
             reliability = float(candidate.reliability) if candidate.reliability is not None else None
     
-    # 검수 기록 저장
-    inspection_record = InspectionRecord(
+    # 기존 검수 기록이 있는지 확인 (같은 target_id에 대한 이전 기록)
+    existing_record = InspectionRecord.query.filter_by(
         rubbing_id=rubbing_id,
-        target_id=target_id,
-        selected_character=selected_character,
-        selected_candidate_id=selected_candidate_id,
-        reliability=reliability
-    )
+        target_id=target_id
+    ).first()
     
-    db.session.add(inspection_record)
+    if existing_record:
+        # 기존 기록이 있으면 업데이트
+        existing_record.selected_character = selected_character
+        existing_record.selected_candidate_id = selected_candidate_id
+        existing_record.reliability = reliability
+        existing_record.inspected_at = datetime.utcnow()
+        inspection_record = existing_record
+    else:
+        # 새 기록 생성
+        inspection_record = InspectionRecord(
+            rubbing_id=rubbing_id,
+            target_id=target_id,
+            selected_character=selected_character,
+            selected_candidate_id=selected_candidate_id,
+            reliability=reliability
+        )
+        db.session.add(inspection_record)
     
-    # 검수 현황 업데이트
-    inspected_count = InspectionRecord.query.filter_by(rubbing_id=rubbing_id).count()
+    # 검수 현황 업데이트 (고유한 target_id의 개수로 계산)
+    inspected_target_ids = {record.target_id for record in InspectionRecord.query.filter_by(rubbing_id=rubbing_id).all()}
+    inspected_count = len(inspected_target_ids)
     rubbing.inspection_status = f"{inspected_count}자 완료"
     
     # 평균 신뢰도 계산

@@ -134,26 +134,24 @@ def get_restoration_targets(rubbing_id):
         # 3순위: Swin Only - Stroke Match 높은 순
         tier3_swin_only.sort(key=lambda x: x['stroke_match'], reverse=True)
         
-        # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위, 2순위가 부족하면 3순위)
+        # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위만 사용)
+        # NLP는 20개를 뽑았으므로 NLP Only가 부족할 수 없음
         top5_candidates = []
         remaining = 5
         
-        # 1순위에서 가져오기
+        # 1순위: 교집합에서 가져오기
         for candidate in tier1_intersection[:remaining]:
             top5_candidates.append(candidate)
             remaining -= 1
         
-        # 2순위에서 가져오기 (1순위가 부족할 때만)
+        # 2순위: NLP Only에서 가져오기 (교집합이 부족할 때만)
+        # NLP는 20개를 뽑았으므로 항상 5개 이상 보장됨
         if remaining > 0:
             for candidate in tier2_nlp_only[:remaining]:
                 top5_candidates.append(candidate)
                 remaining -= 1
         
-        # 3순위에서 가져오기 (1순위와 2순위가 부족할 때만)
-        if remaining > 0:
-            for candidate in tier3_swin_only[:remaining]:
-                top5_candidates.append(candidate)
-                remaining -= 1
+        # 3순위 제거: Swin Only는 제외 (NLP가 20개를 뽑았으므로 NLP Only가 부족할 수 없음)
         
         # 부족한 경우 null로 채움
         while remaining > 0:
@@ -285,26 +283,24 @@ def get_candidates(rubbing_id, target_id):
     # 3순위: Swin Only - Stroke Match 높은 순
     tier3_swin_only.sort(key=lambda x: x['stroke_match'], reverse=True)
     
-    # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위, 2순위가 부족하면 3순위)
+    # 계층적 우선순위로 상위 5개 선택 (1순위가 부족하면 2순위만 사용)
+    # NLP는 20개를 뽑았으므로 NLP Only가 부족할 수 없음
     top5_candidates = []
     remaining = 5
     
-    # 1순위에서 가져오기
+    # 1순위: 교집합에서 가져오기
     for candidate in tier1_intersection[:remaining]:
         top5_candidates.append(candidate)
         remaining -= 1
     
-    # 2순위에서 가져오기 (1순위가 부족할 때만)
+    # 2순위: NLP Only에서 가져오기 (교집합이 부족할 때만)
+    # NLP는 20개를 뽑았으므로 항상 5개 이상 보장됨
     if remaining > 0:
         for candidate in tier2_nlp_only[:remaining]:
             top5_candidates.append(candidate)
             remaining -= 1
     
-    # 3순위에서 가져오기 (1순위와 2순위가 부족할 때만)
-    if remaining > 0:
-        for candidate in tier3_swin_only[:remaining]:
-            top5_candidates.append(candidate)
-            remaining -= 1
+    # 3순위 제거: Swin Only는 제외 (NLP가 20개를 뽑았으므로 NLP Only가 부족할 수 없음)
     
     # 부족한 경우 null로 채움
     while remaining > 0:
