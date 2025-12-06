@@ -4,6 +4,7 @@
 from flask import Blueprint, request, jsonify, send_file
 from models import db, Rubbing, RestorationTarget, Candidate, InspectionRecord
 from sqlalchemy.orm import joinedload
+from datetime import datetime
 import os
 import logging
 
@@ -31,10 +32,25 @@ def get_restoration_targets(rubbing_id):
     if not rubbing:
         return jsonify({'error': 'Rubbing not found'}), 404
     
-    # 1. 해당 탁본의 모든 Target 조회 (후보 포함)
+    # 1. 해당 탁본의 모든 Target 조회 (후보 포함, 검수 기록 포함)
     targets = RestorationTarget.query.filter_by(
         rubbing_id=rubbing_id
-    ).options(joinedload(RestorationTarget.candidates)).all()
+    ).options(
+        joinedload(RestorationTarget.candidates),
+        joinedload(RestorationTarget.inspection_records)
+    ).all()
+    
+    # 2. 검수 기록을 target_id별로 매핑
+    inspection_map = {}
+    for target in targets:
+        # 가장 최근 검수 기록만 사용
+        if target.inspection_records:
+            latest_record = max(target.inspection_records, key=lambda r: r.inspected_at if r.inspected_at else datetime.min)
+            inspection_map[target.id] = {
+                'selected_character': latest_record.selected_character,
+                'selected_candidate_id': latest_record.selected_candidate_id,
+                'reliability': float(latest_record.reliability) if latest_record.reliability else None
+            }
     
     response_data = []
     
@@ -42,6 +58,8 @@ def get_restoration_targets(rubbing_id):
         # 2. 후보군 병합 로직 (Swin + MLM)
         # 한자(character)를 키로 하여 병합
         merged_candidates = {}
+        # 한자별로 여러 후보가 있을 수 있으므로, 각 후보의 ID를 리스트로 저장
+        candidate_ids_by_char = {}
         
         for cand in target.candidates:
             char = cand.character
@@ -53,8 +71,12 @@ def get_restoration_targets(rubbing_id):
                     "reliability": 0.0,
                     "rank_vision": None,
                     "rank_nlp": None,
-                    "model_type": None
+                    "model_type": None,
+                    "id": None  # 후보 ID
                 }
+                candidate_ids_by_char[char] = []
+            
+            candidate_ids_by_char[char].append(cand.id)
             
             # 점수 매핑
             if cand.stroke_match is not None:
@@ -71,6 +93,11 @@ def get_restoration_targets(rubbing_id):
                 merged_candidates[char]['model_type'] = 'vision'
             elif merged_candidates[char]['context_match'] is not None:
                 merged_candidates[char]['model_type'] = 'nlp'
+        
+        # 각 한자에 대해 가장 우선순위가 높은 후보 ID 저장
+        for char, ids in candidate_ids_by_char.items():
+            if ids:
+                merged_candidates[char]['id'] = ids[0]  # 첫 번째 ID 사용
         
         # 3. 계층적 우선순위 정렬 로직 (Tiered Priority)
         # 1순위: 교집합 (Intersection) - Swin과 NLP가 동시에 추천
@@ -144,7 +171,10 @@ def get_restoration_targets(rubbing_id):
         # 전체 후보 (시각화용) - 모든 그룹을 합쳐서 상위 10개
         all_candidates = (tier1_intersection + tier2_nlp_only + tier3_swin_only)[:10]
         
-        # 5. 데이터 구조화
+        # 5. 검수 기록 정보 추가
+        inspection_info = inspection_map.get(target.id)
+        
+        # 6. 데이터 구조화
         response_data.append({
             "id": target.id,
             "row_index": target.row_index,
@@ -157,7 +187,8 @@ def get_restoration_targets(rubbing_id):
             "crop_width": target.crop_width,
             "crop_height": target.crop_height,
             "candidates": top5_candidates,
-            "all_candidates": all_candidates
+            "all_candidates": all_candidates,
+            "inspection": inspection_info  # 검수 기록 정보 추가
         })
     
     return jsonify(response_data)
@@ -178,8 +209,10 @@ def get_candidates(rubbing_id, target_id):
     if not target:
         return jsonify({'error': 'Target not found'}), 404
     
-    # 후보군 병합 로직 (get_restoration_targets와 동일)
+    # 후보군 병합 로직 (get_restoration_targets와 동일, 단 후보 ID 포함)
     merged_candidates = {}
+    # 한자별로 여러 후보가 있을 수 있으므로, 각 후보의 ID를 리스트로 저장
+    candidate_ids_by_char = {}
     
     for cand in target.candidates:
         char = cand.character
@@ -191,8 +224,12 @@ def get_candidates(rubbing_id, target_id):
                 "reliability": 0.0,
                 "rank_vision": None,
                 "rank_nlp": None,
-                "model_type": None
+                "model_type": None,
+                "id": None  # 후보 ID (우선순위가 높은 것 하나만 저장)
             }
+            candidate_ids_by_char[char] = []
+        
+        candidate_ids_by_char[char].append(cand.id)
         
         if cand.stroke_match is not None:
             merged_candidates[char]['stroke_match'] = float(cand.stroke_match)
@@ -207,6 +244,11 @@ def get_candidates(rubbing_id, target_id):
             merged_candidates[char]['model_type'] = 'vision'
         elif merged_candidates[char]['context_match'] is not None:
             merged_candidates[char]['model_type'] = 'nlp'
+    
+    # 각 한자에 대해 가장 우선순위가 높은 후보 ID 저장
+    for char, ids in candidate_ids_by_char.items():
+        if ids:
+            merged_candidates[char]['id'] = ids[0]  # 첫 번째 ID 사용
     
     # 계층적 우선순위 정렬 로직 (Tiered Priority)
     # 1순위: 교집합 (Intersection) - Swin과 NLP가 동시에 추천

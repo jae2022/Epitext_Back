@@ -402,8 +402,9 @@ def get_rubbings():
             elif stats and stats.damage_level:
                 damage_level_str = f"{float(stats.damage_level):.1f}%"
             
-            # 처리 일시
-            created_at_str = r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else "-"
+            # 처리 일시 (processed_at 우선, 없으면 created_at 사용)
+            processed_at = r.processed_at if r.processed_at else r.created_at
+            created_at_str = processed_at.strftime('%Y-%m-%d %H:%M') if processed_at else "-"
             
             results.append({
                 "id": r.id,

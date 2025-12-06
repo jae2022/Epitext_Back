@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 import logging
 import json
 from ai_modules.translation_engine import get_translation_engine
-from models import RubbingDetail, RestorationTarget
+from models import RubbingDetail, RestorationTarget, InspectionRecord
 
 logger = logging.getLogger(__name__)
 
@@ -70,19 +70,33 @@ def translate_text():
 def find_target_line_and_replace(rubbing_id, target_id, replacement_char=None):
     """
     구두점이 포함된 텍스트에서 target_id가 위치한 '정확한 줄'을 찾고,
-    replacement_char가 있다면 해당 위치의 □를 치환하여 반환합니다.
+    1) 이미 검수된 글자들(InspectionRecord)을 해당 위치의 □에 채워 넣고
+    2) 현재 보고 있는 target_id에 대해서는 replacement_char(미리보기 글자)로 치환하여 반환합니다.
     """
-    # 1. 해당 탁본의 모든 Target을 순서대로 조회 (기준점)
-    all_targets = RestorationTarget.query.filter_by(rubbing_id=rubbing_id).order_by(RestorationTarget.id).all()
+    # 1. 해당 탁본의 모든 Target을 순서대로 조회 (row_index, char_index 순서로 정렬)
+    all_targets = RestorationTarget.query.filter_by(rubbing_id=rubbing_id).order_by(
+        RestorationTarget.row_index, RestorationTarget.char_index
+    ).all()
     
-    # 2. 현재 Target이 전체 중에서 몇 번째 □인지 찾기 (Global Index)
+    # 2. 이미 검수 완료된 기록 조회 (DB에서 가져옴) [추가된 로직]
+    # 각 Target에 대해 가장 최근 검수 기록만 가져오기
+    filled_map = {}
+    for target in all_targets:
+        latest_insp = InspectionRecord.query.filter_by(
+            rubbing_id=rubbing_id,
+            target_id=target.id
+        ).order_by(InspectionRecord.inspected_at.desc()).first()
+        if latest_insp:
+            filled_map[target.id] = latest_insp.selected_character
+    
+    # 3. 현재 Target이 전체 중에서 몇 번째 □인지 찾기 (Global Index)
     try:
         target_ids = [t.id for t in all_targets]
         target_global_index = target_ids.index(target_id)
     except ValueError:
         return None, "Target not found"
 
-    # 3. 구두점 포함 텍스트 가져오기
+    # 4. 구두점 포함 텍스트 가져오기
     detail = RubbingDetail.query.filter_by(rubbing_id=rubbing_id).first()
     if not detail or not detail.text_content_with_punctuation:
         return None, "Text content not found"
@@ -92,49 +106,57 @@ def find_target_line_and_replace(rubbing_id, target_id, replacement_char=None):
     except:
         text_lines = []
 
-    # 4. 줄을 순회하며 몇 번째 줄에 내 Target이 있는지 계산
+    # 5. 줄을 순회하며 현재 Target이 포함된 줄 찾기
     current_mask_count = 0
     found_line_index = -1
-    mask_index_in_line = -1  # 그 줄 안에서 몇 번째 □인지
+    
+    # 해당 줄의 시작 마스크 인덱스 (Global index 기준)
+    line_start_mask_index = 0
     
     for idx, line in enumerate(text_lines):
         line_masks = line.count('□')
-        # 내 타겟 순번이 현재 줄 범위 안에 있는지 확인
         if current_mask_count <= target_global_index < (current_mask_count + line_masks):
             found_line_index = idx
-            mask_index_in_line = target_global_index - current_mask_count
+            line_start_mask_index = current_mask_count
             break
         current_mask_count += line_masks
         
     if found_line_index == -1:
         return None, "Target line mismatch"
 
-    # 5. 찾은 줄 가져오기
+    # 6. 찾은 줄 가져오기
     original_line = text_lines[found_line_index]
     
-    # 6. 글자 치환 (replacement_char가 있을 때만)
-    final_text = original_line
-    char_index_in_line = -1  # 선택된 글자의 정확한 인덱스 위치
-    if replacement_char:
-        chars = list(original_line)
-        seen_masks = 0
-        for i, char in enumerate(chars):
-            if char == '□':
-                if seen_masks == mask_index_in_line:
-                    chars[i] = replacement_char
-                    char_index_in_line = i  # 치환된 위치 저장
-                    break
-                seen_masks += 1
-        final_text = "".join(chars)
-    else:
-        # replacement_char가 없어도 □의 위치를 찾아서 반환
-        seen_masks = 0
-        for i, char in enumerate(original_line):
-            if char == '□':
-                if seen_masks == mask_index_in_line:
-                    char_index_in_line = i
-                    break
-                seen_masks += 1
+    # 7. [핵심 수정] 줄 내의 모든 □를 순회하며 적절한 글자로 치환
+    #    - 현재 미리보기 중인 글자 (replacement_char)
+    #    - 이미 검수 완료된 글자 (filled_map)
+    
+    chars = list(original_line)
+    seen_masks_in_line = 0
+    char_index_in_line = -1  # 현재 선택된 글자의 줄 내 인덱스 (하이라이팅용)
+
+    for i, char in enumerate(chars):
+        if char == '□':
+            # 이 □의 전체(Global) 순번 계산
+            current_mask_global_idx = line_start_mask_index + seen_masks_in_line
+            
+            # 유효성 검사
+            if current_mask_global_idx < len(all_targets):
+                t_obj = all_targets[current_mask_global_idx]
+                
+                # Case A: 현재 팝업에서 보고 있는 Target인 경우
+                if t_obj.id == target_id:
+                    if replacement_char:  # 미리보기 글자가 있으면 치환
+                        chars[i] = replacement_char
+                    char_index_in_line = i  # 인덱스 저장 (나중에 하이라이팅)
+                
+                # Case B: 이미 검수가 끝난 다른 Target인 경우 [추가됨]
+                elif t_obj.id in filled_map:
+                    chars[i] = filled_map[t_obj.id]  # DB에 저장된 검수 글자로 치환
+            
+            seen_masks_in_line += 1
+            
+    final_text = "".join(chars)
         
     return final_text, char_index_in_line
 
