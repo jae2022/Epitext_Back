@@ -1,17 +1,45 @@
+<div><img src="https://capsule-render.vercel.app/api?type=waving&color=auto&height=340&section=header&text=EPITEXT&fontSize=90" /></div>
+
+# 📜 프로젝트 소개
+
+## 🤔 About
+
+고려대학교 지능정보 SW 아카데미 7기 팀 복원왕 김탁본 입니다
+
+## ☺️ 팀 멤버
+
+| 이름 | 학과 | 이메일 | 담당 |
+|---|---|---|---|
+| 황동현 | 간호학과 | myjewel29@naver.com | 앙상블 문자 인식 기술(OCR) 설계 |
+| 장예진 | 한국사학과 | dpwls6284@naver.com | [SikuRoBERTa](https://huggingface.co/jhangyejin/epitext-sikuroberta) 학습 및 번역 LLM 프롬프트 설계 |
+| 안성민 | IT기전공학과 | tjdals2299@gmail.com | 이미지 전처리 및 [Swin V2](https://huggingface.co/ANSEONGMIN/hanja-swinv2) 학습 |
+| 최준형 | 산업시스템공학과 | jbro2018@naver.com | EPITEXT 서비스 디자인 및 개발 |
+
+## 🧑🏻‍💻 EPITEXT 소개
+
+EPITEXT는 훼손·유실된 탁본(금석문) 문자를 멀티모달 AI로 복원하고, 최종 판독과 번역까지 이어지는 탁본 전문가 의사결정 지원 서비스입니다. 탁본 이미지를 업로드하면 전처리와 OCR 앙상블(Google Vision OCR + 고문서 특화 OCR) 로 텍스트를 추출하고, 글자 손상 정도를 자동 분류해 복원 전략을 달리 적용합니다. 형태가 완전히 사라진 영역은 언어 모델(SikuRoBERTa) 이 문맥 기반으로 추론하고, 일부 획이 남은 영역은 비전 모델(Swin V2) 까지 관여하여 잔여 획을 분석해 예측합니다. 두 모델의 결과는 F1 Score로 통합되어 Top-5 후보로 제시되며, 사용자는 번역 하이라이트를 통해 빠르고 신뢰성 있게 탁본 손상 영역을 검수·확정할 수 있습니다.
+
+### 🎥 EPITEXT 시연 영상
+
+[시연 영상 바로가기](https://www.youtube.com/watch?v=TJlI6UMyEFw)
+
+## 🛠️ 기술 스택
+
+### Frameworks & Environments
+<div> <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=white"/> <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white"/> <img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white"/> </div>
+
+### Frontend Stack
+<div> <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=JavaScript&logoColor=white"/> <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white"/> <img src="https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white"/> <img src="https://img.shields.io/badge/D3.js-F9A03C?style=for-the-badge&logo=d3.js&logoColor=white"/> </div>
+
+### Backend Stack
+<div> <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white"/> <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white"/> <img src="https://img.shields.io/badge/SQLAlchemy-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white"/> <img src="https://img.shields.io/badge/Flask_CORS-000000?style=for-the-badge&logo=flask&logoColor=white"/> </div>
+
+### AI & Image Processing
+<div> <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white"/> <img src="https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white"/> <img src="https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=hugging-face&logoColor=black"/> <img src="https://img.shields.io/badge/Google_Cloud_Vision-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white"/> <img src="https://img.shields.io/badge/Google_Gemini-8E75C2?style=for-the-badge&logo=google-gemini&logoColor=white"/> </div
+
 # EPITEXT Backend
 
 탁본 복원 시스템의 백엔드 API 서버입니다. AI 기반 OCR, 구두점 복원, 한자 복원, 번역 기능을 제공합니다.
-
-## 📋 목차
-
-- [시스템 요구사항](#시스템-요구사항)
-- [설치 가이드](#설치-가이드)
-- [모델 파일 준비](#모델-파일-준비)
-- [환경 변수 설정](#환경-변수-설정)
-- [데이터베이스 설정](#데이터베이스-설정)
-- [서버 실행](#서버-실행)
-- [API 엔드포인트](#api-엔드포인트)
-- [문제 해결](#문제-해결)
 
 ## 🖥️ 시스템 요구사항
 
@@ -516,6 +544,5 @@ Epitext_Back/
 3. 데이터베이스가 초기화되었는지
 4. 모든 의존성이 설치되었는지
 
----
-
-**EPITEXT Backend v1.0.0**
+## 🧩 Copyright
+Copyright 2025. EPITEXT. All rights reserveed
