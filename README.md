@@ -37,7 +37,7 @@ EPITEXT는 훼손·유실된 탁본(금석문) 문자를 멀티모달 AI로 복�
 ### AI & Image Processing
 <div> <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white"/> <img src="https://img.shields.io/badge/OpenCV-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white"/> <img src="https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=hugging-face&logoColor=black"/> <img src="https://img.shields.io/badge/Google_Cloud_Vision-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white"/> <img src="https://img.shields.io/badge/Google_Gemini-8E75C2?style=for-the-badge&logo=google-gemini&logoColor=white"/> </div>
 
-# EPITEXT Backend
+# 🔋 EPITEXT Backend
 
 탁본 복원 시스템의 백엔드 API 서버입니다. AI 기반 OCR, 구두점 복원, 한자 복원, 번역 기능을 제공합니다.
 
