@@ -108,7 +108,7 @@ OCR 모델은 다음 두 가지 파일이 필요합니다:
 2. **Recognition Model** (`best_5000.pt`): 한자 인식 모델
 
 두 파일은 다음 링크에서 다운 받을 수 있습니다.
-[best.pth, best_5000.pt 구글 드라이브 링크](https://drive.google.com/drive/folders/15zNEurW7R7Qf5GVDfxYD5oShjDFDUoF9?usp=sharing)
+[EPITEXT Model Weight]([https://drive.google.com/drive/folders/15zNEurW7R7Qf5GVDfxYD5oShjDFDUoF9?usp=sharing](https://drive.google.com/drive/folders/1Bez33E5FW6WnsbbOd17RnXhJ7QbGUVa-?usp=sharing))
 
 **파일 구조 예시**:
 ```
