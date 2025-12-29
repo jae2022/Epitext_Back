@@ -10,7 +10,7 @@
 
 | 이름 | 학과 | 이메일 | 담당 |
 |---|---|---|---|
-| 황동현 | 간호학과 | myjewel29@naver.com | 앙상블 문자 인식 기술(OCR) 설계 |
+| 황동현 | 간호학과 | myjewel29@naver.com | 앙상블 문자 인식 기술([OCR](https://huggingface.co/donghyun95/EpiText-Hanja-OCR)) 설계 |
 | 장예진 | 한국사학과 | dpwls6284@naver.com | [SikuRoBERTa](https://huggingface.co/jhangyejin/epitext-sikuroberta) 학습 및 번역 LLM 프롬프트 설계 |
 | 안성민 | IT기전공학과 | tjdals2299@gmail.com | 이미지 전처리 및 [Swin V2](https://huggingface.co/ANSEONGMIN/hanja-swinv2) 학습 |
 | 최준형 | 산업시스템공학과 | jbro2018@naver.com | EPITEXT 서비스 디자인 및 개발 |
